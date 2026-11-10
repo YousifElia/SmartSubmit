@@ -250,3 +250,31 @@ export function resumeFileName(name: string, company?: string): string {
   if (company && clean(company)) parts.push(clean(company));
   return `${parts.join('_')}.pdf`;
 }
+
+/**
+ * A resume that could not be split into sections, laid out as plain text so
+ * there is still something to attach.
+ */
+export async function renderPlainTextPdf(text: string, options: ResumePdfOptions & { title?: string }): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const fonts = await embedFonts(doc, options.fonts);
+  const scale = SCALES[1]!;
+  const layout = new Layout(doc, fonts, pageSetup(options.pageSize, scale));
+  const body: TextStyle = { size: scale.body, leading: scale.leading, color: INK };
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  lines.forEach((line, index) => {
+    if (line.trim() === '') {
+      layout.space(body.size * 0.6);
+      return;
+    }
+    // The first line of a resume is the name.
+    if (index === lines.findIndex((l) => l.trim() !== '')) {
+      layout.paragraph([{ text: line.trim(), bold: true }], { size: scale.name * 0.8, leading: 1.25, color: INK }, { after: 4 });
+      return;
+    }
+    const bullet = /^\s*[•●▪■◦*-]\s+/.exec(line);
+    if (bullet) layout.paragraph([{ text: line.slice(bullet[0].length).trim() }], body, { x: 6, marker: '•', markerIndent: body.size * 1.05 });
+    else layout.paragraph([{ text: line.trim() }], body);
+  });
+  return finish(doc, { title: options.title ?? 'Resume', subject: 'Resume' });
+}
