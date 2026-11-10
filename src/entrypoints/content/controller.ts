@@ -116,6 +116,10 @@ export class Controller {
       clearHighlights(this.doc);
       this.dismissed.clear();
 
+      // Filling moves focus down the form; put the page back where the user had it.
+      const view = this.doc.defaultView;
+      const scroll = view ? { x: view.scrollX, y: view.scrollY } : null;
+
       const resumeId = this.state.resumeId;
       let resume: File | null | undefined;
       const results = await autofill(
@@ -140,6 +144,9 @@ export class Controller {
           },
         },
       );
+
+      (this.doc.activeElement as HTMLElement | null)?.blur?.();
+      if (view && scroll) view.scrollTo(scroll.x, scroll.y);
 
       const used = results.filter((r) => r.answerId && (r.status === 'filled' || r.status === 'review')).map((r) => r.answerId!);
       if (used.length > 0) void send('answers.used', { ids: used }).catch(() => undefined);
