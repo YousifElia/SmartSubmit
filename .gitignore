@@ -1,0 +1,14 @@
+node_modules
+.output
+.wxt
+.env
+.env.*
+!.env.example
+*.log
+test-results
+playwright-report
+tests/e2e/.profiles
+supabase/.temp
+supabase/.branches
+.DS_Store
+web-ext-artifacts

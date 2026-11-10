@@ -1,0 +1,171 @@
+/**
+ * Typed request/response messaging between the background script and every
+ * other context (dashboard, popup, content scripts).
+ *
+ * Content scripts never read storage directly. They ask the background for
+ * exactly what they need, and no handler ever returns a secret (sync session,
+ * encryption key, or the OpenAI-compatible API key).
+ */
+import { browser } from 'wxt/browser';
+import type { Mutation } from './storage/db';
+import type {
+  Job,
+  Profile,
+  ResumeDoc,
+  SavedAnswer,
+  Settings,
+  TailorChange,
+  TailoredResume,
+} from './types';
+
+/** What a content script needs in order to fill a form. */
+export interface Snapshot {
+  profile: Profile;
+  answers: SavedAnswer[];
+  resumes: ResumeSummary[];
+  settings: {
+    autofill: Settings['autofill'];
+    panel: Settings['panel'];
+    aiReady: boolean;
+    aiProvider: Settings['ai']['provider'];
+  };
+  onboarded: boolean;
+}
+
+export interface ResumeSummary {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  /** True when the structured form exists, so it can be tailored. */
+  structured: boolean;
+}
+
+export interface FilePayload {
+  name: string;
+  mime: string;
+  base64: string;
+}
+
+export interface AiStatus {
+  provider: Settings['ai']['provider'];
+  ok: boolean;
+  model: string;
+  models: string[];
+  error?: string;
+}
+
+export interface TailorResult {
+  doc: ResumeDoc;
+  changes: TailorChange[];
+  gaps: string[];
+}
+
+export interface SyncStatus {
+  configured: boolean;
+  signedIn: boolean;
+  email: string;
+  /** Needs the password again on this device to unlock the encryption key. */
+  locked: boolean;
+  lastSyncAt: number | null;
+  syncing: boolean;
+  pending: number;
+  error: string;
+}
+
+export type AuthResult =
+  | { ok: true; needsConfirmation?: boolean }
+  | { ok: false; error: string };
+
+/** Every message the background understands: request payload → response. */
+export interface Protocol {
+  'db.mutate': [{ mutations: Mutation[] }, void];
+  snapshot: [void, Snapshot];
+  'tab.open': [{ url: string }, void];
+  'dashboard.open': [{ route?: string }, void];
+
+  /** The file to attach for a resume or a tailored version. */
+  'resume.file': [{ kind: 'resume' | 'tailored'; id: string; company?: string }, FilePayload | null];
+  'pdf.resume': [{ doc: ResumeDoc; fileName?: string }, FilePayload];
+  'pdf.job': [{ jobId: string }, FilePayload | null];
+
+  'job.upsert': [{ job: Omit<Job, 'id' | 'status' | 'appliedAt' | 'resumeRef' | 'notes' | 'score'> }, Job];
+  'job.update': [{ id: string; patch: Partial<Job> }, Job | null];
+  'tailored.forJob': [{ jobId: string }, TailoredResume[]];
+
+  'ai.status': [{ probe?: Settings['ai'] } | void, AiStatus];
+  'ai.tailor': [{ resumeId: string; jobId: string; strength: TailorStrength }, TailorResult];
+  'ai.parseResume': [{ text: string }, ResumeDoc];
+  'ai.draftAnswer': [{ question: string; jobId?: string; resumeId?: string; maxLength?: number }, string];
+  'ai.cancel': [void, void];
+
+  'sync.status': [void, SyncStatus];
+  'sync.now': [void, SyncStatus];
+  'auth.signUp': [{ email: string; password: string }, AuthResult];
+  'auth.signIn': [{ email: string; password: string }, AuthResult];
+  'auth.confirm': [{ email: string; code: string; password: string }, AuthResult];
+  'auth.signOut': [void, void];
+  'auth.changePassword': [{ current: string; next: string }, AuthResult];
+  'auth.requestReset': [{ email: string }, AuthResult];
+  'auth.completeReset': [{ email: string; code: string; password: string }, AuthResult];
+  'auth.deleteAccount': [void, AuthResult];
+}
+
+export type TailorStrength = 'light' | 'balanced' | 'strong';
+
+export type MessageType = keyof Protocol;
+type Req<K extends MessageType> = Protocol[K][0];
+type Res<K extends MessageType> = Protocol[K][1];
+
+interface Envelope {
+  __smartsubmit: true;
+  type: MessageType;
+  payload: unknown;
+}
+
+type Reply = { ok: true; data: unknown } | { ok: false; error: string };
+
+/** Send a request to the background script and wait for its answer. */
+export async function send<K extends MessageType>(
+  type: K,
+  ...args: Req<K> extends void ? [] | [Req<K>] : [Req<K>]
+): Promise<Res<K>> {
+  const envelope: Envelope = { __smartsubmit: true, type, payload: args[0] };
+  const reply = (await browser.runtime.sendMessage(envelope)) as Reply | undefined;
+  if (!reply) throw new Error('SmartSubmit is restarting. Please try again.');
+  if (!reply.ok) throw new Error(reply.error);
+  return reply.data as Res<K>;
+}
+
+export type Handlers = {
+  [K in MessageType]: (payload: Req<K>, sender: { tabId?: number; url?: string }) => Promise<Res<K>> | Res<K>;
+};
+
+/** Register the background's handlers. Call once, at the top level. */
+export function serve(handlers: Partial<Handlers>): void {
+  browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
+    const envelope = message as Partial<Envelope> | null;
+    if (!envelope || envelope.__smartsubmit !== true || typeof envelope.type !== 'string') return undefined;
+    const handler = handlers[envelope.type] as
+      | ((payload: unknown, sender: { tabId?: number; url?: string }) => unknown)
+      | undefined;
+    if (!handler) {
+      sendResponse({ ok: false, error: `Unknown request: ${envelope.type}` } satisfies Reply);
+      return undefined;
+    }
+    Promise.resolve()
+      .then(() => handler(envelope.payload, { tabId: sender.tab?.id, url: sender.url }))
+      .then(
+        (data) => sendResponse({ ok: true, data } satisfies Reply),
+        (error: unknown) =>
+          sendResponse({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          } satisfies Reply),
+      );
+    // Keep the channel open for the asynchronous reply.
+    return true;
+  });
+}
+
+/** Messages the background sends to a tab's content script. */
+export type TabCommand = { __smartsubmit: true; command: 'toggle-panel' | 'autofill' | 'ping' };
