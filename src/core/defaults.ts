@@ -85,6 +85,7 @@ export function emptyResumeDoc(): ResumeDoc {
     projects: [],
     skills: [],
     extras: [],
+    order: [],
   };
 }
 

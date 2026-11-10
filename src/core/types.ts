@@ -181,6 +181,12 @@ export interface ResumeDoc {
   skills: ResumeSkillGroup[];
   /** Any other section: certifications, awards, publications, volunteering. */
   extras: ResumeExtra[];
+  /**
+   * Order of the sections on the page: 'summary', 'education', 'experience',
+   * 'projects', 'skills', or `extra:<title>` for one of the extras. Sections
+   * not listed follow in the default order.
+   */
+  order: string[];
 }
 
 export interface ResumeExperience {
