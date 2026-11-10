@@ -39,6 +39,8 @@
     "@types/react-dom": "^19.3.0",
     "@wxt-dev/module-react": "^1.2.2",
     "happy-dom": "^21.0.4",
+    "intl-tel-input": "^29.5.11",
+    "react-select": "^5.10.2",
     "tailwindcss": "^4.3.5",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0",

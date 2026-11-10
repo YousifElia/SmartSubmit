@@ -7,6 +7,7 @@
  * encryption key, or the OpenAI-compatible API key).
  */
 import { browser } from 'wxt/browser';
+import type { SiteId } from './sites';
 import type { Mutation } from './storage/db';
 import type {
   Job,
@@ -38,6 +39,22 @@ export interface ResumeSummary {
   isDefault: boolean;
   /** True when the structured form exists, so it can be tailored. */
   structured: boolean;
+}
+
+/** What a tab's content script reports about its page. */
+export interface PageStatus {
+  site: SiteId;
+  hasForm: boolean;
+  fieldCount: number;
+  /** Whether the reply came from the top frame rather than an embedded one. */
+  top: boolean;
+}
+
+export interface NewAnswer {
+  question: string;
+  kind: SavedAnswer['kind'];
+  answer: string | string[];
+  options: string[];
 }
 
 export interface FilePayload {
@@ -82,6 +99,16 @@ export interface Protocol {
   snapshot: [void, Snapshot];
   'tab.open': [{ url: string }, void];
   'dashboard.open': [{ route?: string }, void];
+
+  /** Remember answers the user gave on a form. Returns the stored records. */
+  'answers.save': [{ items: NewAnswer[]; host: string }, SavedAnswer[]];
+  /** Note that saved answers were used, for the "times used" count. */
+  'answers.used': [{ ids: string[] }, void];
+  'panel.hideHost': [{ host: string }, void];
+  /** Ask a tab whether it holds an application form. Null if SmartSubmit is not running there. */
+  'page.status': [{ tabId: number }, PageStatus | null];
+  /** Open the panel in a tab (injecting SmartSubmit first if needed) and optionally autofill. */
+  'page.activate': [{ tabId: number; run: boolean }, PageStatus | null];
 
   /** The file to attach for a resume or a tailored version. */
   'resume.file': [{ kind: 'resume' | 'tailored'; id: string; company?: string }, FilePayload | null];
@@ -136,6 +163,24 @@ export async function send<K extends MessageType>(
   return reply.data as Res<K>;
 }
 
+/**
+ * Requests only extension pages (dashboard, popup) may make. A content script
+ * runs inside a web page's process, so it is given the narrow requests it
+ * needs and nothing that rewrites the store or touches the sync account.
+ */
+const PAGE_ONLY: ReadonlySet<MessageType> = new Set<MessageType>([
+  'db.mutate',
+  'auth.signUp',
+  'auth.signIn',
+  'auth.confirm',
+  'auth.signOut',
+  'auth.changePassword',
+  'auth.requestReset',
+  'auth.completeReset',
+  'auth.deleteAccount',
+  'sync.now',
+]);
+
 export type Handlers = {
   [K in MessageType]: (payload: Req<K>, sender: { tabId?: number; url?: string }) => Promise<Res<K>> | Res<K>;
 };
@@ -150,6 +195,11 @@ export function serve(handlers: Partial<Handlers>): void {
       | undefined;
     if (!handler) {
       sendResponse({ ok: false, error: `Unknown request: ${envelope.type}` } satisfies Reply);
+      return undefined;
+    }
+    const fromExtensionPage = (sender.url ?? '').startsWith(browser.runtime.getURL(''));
+    if (PAGE_ONLY.has(envelope.type) && !fromExtensionPage) {
+      sendResponse({ ok: false, error: 'This request is only available from the SmartSubmit dashboard.' } satisfies Reply);
       return undefined;
     }
     Promise.resolve()

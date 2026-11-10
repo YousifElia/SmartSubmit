@@ -1,0 +1,90 @@
+<!doctype html>
+<!--
+  A home-made careers page of the kind small companies write themselves: no
+  application system, inconsistent markup, labels that are not always <label>.
+  Exercises the generic path that works from wording alone.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Careers - Join Maple Leaf Analytics</title>
+    <style>
+      body { font-family: Georgia, serif; max-width: 640px; margin: 0 auto; padding: 24px; }
+      .row { margin: 14px 0; }
+      .q { font-weight: bold; margin-bottom: 4px; }
+      input[type="text"], input[type="email"], input[type="tel"], select, textarea { width: 100%; padding: 8px; box-sizing: border-box; }
+      table td { padding: 4px 8px 4px 0; vertical-align: top; }
+    </style>
+  </head>
+  <body>
+    <h1>Junior Data Analyst (Co-op)</h1>
+    <p>Maple Leaf Analytics is hiring a co-op student for the fall term in Toronto, Ontario.</p>
+
+    <form id="apply" action="#" method="post">
+      <h2>Your details</h2>
+      <div class="row"><label for="fn">First name</label><input type="text" id="fn" name="fn" /></div>
+      <div class="row"><label for="ln">Last name</label><input type="text" id="ln" name="ln" /></div>
+      <!-- A label that wraps its input. -->
+      <div class="row"><label>Email address <input type="email" name="contact_email" /></label></div>
+      <!-- No label element at all: just text before the input. -->
+      <div class="row"><div class="q">Phone number</div><input type="tel" name="p1" /></div>
+      <!-- Only an aria-label. -->
+      <div class="row"><input type="text" name="li" aria-label="LinkedIn profile URL" placeholder="https://" /></div>
+      <!-- A table layout, as old sites do. -->
+      <table>
+        <tr><td>City</td><td><input type="text" name="c" /></td></tr>
+        <tr><td>Province</td><td>
+          <select name="prov">
+            <option value="">-- choose --</option>
+            <option value="AB">AB</option><option value="BC">BC</option><option value="MB">MB</option>
+            <option value="ON">ON</option><option value="QC">QC</option>
+          </select></td></tr>
+        <tr><td>Postal code</td><td><input type="text" name="pc" /></td></tr>
+      </table>
+
+      <h2>Education</h2>
+      <div class="row"><div class="q">School</div><input type="text" name="edu_school" /></div>
+      <div class="row"><div class="q">Program</div><input type="text" name="edu_program" /></div>
+      <div class="row">
+        <div class="q">Expected graduation</div>
+        <select name="grad_month" aria-label="Graduation month">
+          <option value="">Month</option>
+          <option>January</option><option>February</option><option>March</option><option>April</option><option>May</option><option>June</option>
+          <option>July</option><option>August</option><option>September</option><option>October</option><option>November</option><option>December</option>
+        </select>
+        <select name="grad_year" aria-label="Graduation year">
+          <option value="">Year</option><option>2025</option><option>2026</option><option>2027</option><option>2028</option>
+        </select>
+      </div>
+
+      <h2>A few questions</h2>
+      <fieldset class="row">
+        <legend>Are you legally entitled to work in Canada?</legend>
+        <input type="radio" name="entitled" id="ent_y" value="y" /> <label for="ent_y">Yes</label>
+        <input type="radio" name="entitled" id="ent_n" value="n" /> <label for="ent_n">No</label>
+      </fieldset>
+      <div class="row">
+        <div class="q">Are you returning to school after this work term?</div>
+        <label><input type="radio" name="returning" value="yes" /> Yes</label>
+        <label><input type="radio" name="returning" value="no" /> No</label>
+      </div>
+      <div class="row">
+        <div class="q">How many years of experience do you have with SQL?</div>
+        <select name="sql_years">
+          <option value="">Please select</option>
+          <option>Less than 1 year</option><option>1-2 years</option><option>3-5 years</option><option>More than 5 years</option>
+        </select>
+      </div>
+      <div class="row"><div class="q">Which co-op term are you available for?</div><input type="text" name="term" /></div>
+      <div class="row"><div class="q">Why do you want to work at Maple Leaf Analytics?</div><textarea name="why" rows="4"></textarea></div>
+      <div class="row"><div class="q">Social Insurance Number</div><input type="text" name="sin" /></div>
+      <div class="row"><label><input type="checkbox" name="agree" /> I confirm the information above is accurate</label></div>
+      <div class="row">Upload your resume: <input type="file" name="cv_file" /></div>
+      <button type="submit">Send application</button>
+    </form>
+    <script>
+      window.__submitted = false;
+      document.getElementById('apply').addEventListener('submit', function (e) { e.preventDefault(); window.__submitted = true; });
+    </script>
+  </body>
+</html>

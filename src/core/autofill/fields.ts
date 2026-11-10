@@ -156,6 +156,26 @@ function precedingText(el: HTMLElement, previous: HTMLElement | null): string {
   return '';
 }
 
+/** Button captions that say nothing about which file is wanted. */
+const UPLOAD_CAPTION = /^(attach|upload|browse|choose|select|add)( a| the| your)?( file| files| document)?$/i;
+
+/** The question a file input belongs to, when its own label is only a button caption. */
+function fileLabel(el: HTMLElement, previous: HTMLElement | null): string {
+  const group = el.closest('[role="group"][aria-labelledby], [role="group"][aria-label]');
+  if (group) {
+    const named = labelledBy(group) || group.getAttribute('aria-label') || '';
+    if (named) return named;
+  }
+  // Otherwise the text before the whole upload control.
+  let wrapper: HTMLElement = el;
+  for (let depth = 0; depth < 4 && wrapper.parentElement; depth++) {
+    wrapper = wrapper.parentElement;
+    const before = precedingText(wrapper, previous);
+    if (before && !UPLOAD_CAPTION.test(cleanLabel(before))) return before;
+  }
+  return '';
+}
+
 function questionLabel(el: HTMLElement, previous: HTMLElement | null, hooks: DiscoveryHooks): string {
   const candidates = [
     () => hooks.labelFor?.(el) ?? '',
@@ -170,9 +190,15 @@ function questionLabel(el: HTMLElement, previous: HTMLElement | null, hooks: Dis
     () => (el as HTMLInputElement).placeholder ?? '',
     () => el.getAttribute('title') ?? '',
   ];
+  const isFile = el instanceof HTMLInputElement && el.type === 'file';
   for (const candidate of candidates) {
     const value = cleanLabel(candidate());
-    if (value) return value.slice(0, 400);
+    if (!value) continue;
+    if (isFile && UPLOAD_CAPTION.test(value)) {
+      const better = cleanLabel(fileLabel(el, previous));
+      if (better) return better.slice(0, 400);
+    }
+    return value.slice(0, 400);
   }
   return '';
 }

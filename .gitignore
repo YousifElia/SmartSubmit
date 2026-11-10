@@ -12,3 +12,4 @@ supabase/.temp
 supabase/.branches
 .DS_Store
 web-ext-artifacts
+tests/fixtures/dist

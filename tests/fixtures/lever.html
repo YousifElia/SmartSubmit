@@ -1,0 +1,241 @@
+<!doctype html>
+<!--
+  Replica of a Lever application (jobs.lever.co/<company>/<id>/apply).
+  Mirrors the real page's structure: a server-rendered form of
+  `li.application-question` rows, with custom questions as "cards" whose
+  inputs are named cards[<uuid>][fieldN]. The content is invented.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acme Robotics - Software Developer Intern</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; color: #222; }
+      .page-centered { max-width: 680px; margin: 0 auto; padding: 16px 20px; }
+      ul { list-style: none; padding: 0; margin: 0; }
+      .application-question { margin-top: 18px; }
+      .application-label { font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+      .required { color: #c00; margin-left: 2px; }
+      input[type="text"], input[type="email"], textarea, select { width: 100%; padding: 10px 12px; border: 1px solid #c7ccd4; border-radius: 6px; font: inherit; box-sizing: border-box; }
+      .invisible-resume-upload { position: absolute; opacity: 0; width: 1px; height: 1px; }
+      .postings-btn { display: inline-block; padding: 8px 16px; border: 1px solid #333; border-radius: 4px; cursor: pointer; position: relative; }
+      .dropdown-container { display: none; background: #1f2937; color: #e5e7eb; border-radius: 6px; margin-top: 4px; }
+      .dropdown-container.open { display: block; }
+      .dropdown-results > div { padding: 8px 12px; cursor: pointer; }
+      .dropdown-no-results, .dropdown-loading-results { display: none; padding: 8px 12px; }
+      .application-answer-alternative { margin-left: 6px; }
+      li.multiple-choice label, li.checkboxes label { display: block; margin: 4px 0; font-weight: 400; }
+    </style>
+  </head>
+  <body>
+    <div class="section page-centered posting-header">
+      <div class="posting-headline">
+        <h2>Software Developer Intern</h2>
+        <div class="posting-categories"><div class="location">Windsor, ON</div><div class="commitment">Internship</div></div>
+      </div>
+    </div>
+    <form id="application-form" enctype="multipart/form-data" method="POST">
+      <div class="section page-centered application-form">
+        <h4>Submit your application</h4>
+        <ul>
+          <li class="application-question resume">
+            <label>
+              <div class="application-label">Resume/CV <span class="required">✱</span></div>
+              <div class="application-field">
+                <a href="#" class="postings-btn template-btn-utility visible-resume-upload">
+                  <span class="filename">ATTACH RESUME/CV</span>
+                  <input class="application-file-input invisible-resume-upload" type="file" id="resume-upload-input" data-qa="input-resume" name="resume" />
+                </a>
+              </div>
+            </label>
+          </li>
+          <li class="application-question">
+            <label><div class="application-label">Full name<span class="required">✱</span></div>
+              <div class="application-field"><input type="text" data-qa="name-input" name="name" required /></div></label>
+          </li>
+          <li class="application-question">
+            <label><div class="application-label">Email<span class="required">✱</span></div>
+              <div class="application-field"><input name="email" data-qa="email-input" type="email" required /></div></label>
+          </li>
+          <li class="application-question">
+            <label><div class="application-label">Phone</div>
+              <div class="application-field"><input type="text" data-qa="phone-input" name="phone" /></div></label>
+          </li>
+          <li class="application-question" data-qa="structured-contact-location-question">
+            <label>
+              <div class="application-label">Current location <span class="required">✱</span></div>
+              <div class="application-field">
+                <input class="location-input" data-qa="location-input" id="location-input" type="text" maxlength="100" name="location" required />
+                <input id="selected-location" type="hidden" name="selectedLocation" />
+                <div class="dropdown-container">
+                  <div class="dropdown-results width-full cursor-pointer"></div>
+                  <div class="dropdown-no-results">No location found. Try entering a different location</div>
+                  <div class="dropdown-loading-results">Loading</div>
+                </div>
+              </div>
+            </label>
+          </li>
+          <li class="application-question">
+            <label><div class="application-label">Current company</div>
+              <div class="application-field"><input type="text" data-qa="org-input" name="org" /></div></label>
+          </li>
+        </ul>
+      </div>
+      <div class="section page-centered application-form">
+        <h4>Links</h4>
+        <ul>
+          <li class="application-question"><label><div class="application-label">LinkedIn URL</div><div class="application-field"><input type="text" name="urls[LinkedIn]" /></div></label></li>
+          <li class="application-question"><label><div class="application-label">GitHub URL</div><div class="application-field"><input type="text" name="urls[GitHub]" /></div></label></li>
+          <li class="application-question"><label><div class="application-label">Portfolio URL</div><div class="application-field"><input type="text" name="urls[Portfolio]" /></div></label></li>
+        </ul>
+      </div>
+      <div class="section page-centered application-form" data-qa="additional-cards">
+        <h4 data-qa="card-name">Work Authorization</h4>
+        <input type="hidden" name="cards[1c719ca9-5069-4afe-9e82-39ca420e0edb][baseTemplate]" value="{}" />
+        <ul>
+          <li class="application-question custom-question multiple-choice">
+            <div>
+              <div class="application-label full-width multiple-choice"><div class="text">Are you legally authorized to work in the country for which you are applying?<span class="required">✱</span></div></div>
+              <div class="application-field full-width required-field">
+                <ul data-qa="multiple-choice">
+                  <li><label><input type="radio" name="cards[1c719ca9-5069-4afe-9e82-39ca420e0edb][field0]" value="Yes" required /><span class="application-answer-alternative">Yes</span></label></li>
+                  <li><label><input type="radio" name="cards[1c719ca9-5069-4afe-9e82-39ca420e0edb][field0]" value="No" /><span class="application-answer-alternative">No</span></label></li>
+                </ul>
+              </div>
+            </div>
+          </li>
+          <li class="application-question custom-question multiple-choice">
+            <div>
+              <div class="application-label full-width multiple-choice"><div class="text">Will you now or in the future require sponsorship for employment visa status (e.g., H-1B, etc.)?<span class="required">✱</span></div></div>
+              <div class="application-field full-width required-field">
+                <ul data-qa="multiple-choice">
+                  <li><label><input type="radio" name="cards[1c719ca9-5069-4afe-9e82-39ca420e0edb][field1]" value="Yes" required /><span class="application-answer-alternative">Yes</span></label></li>
+                  <li><label><input type="radio" name="cards[1c719ca9-5069-4afe-9e82-39ca420e0edb][field1]" value="No" /><span class="application-answer-alternative">No</span></label></li>
+                </ul>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="section page-centered application-form" data-qa="additional-cards">
+        <h4 data-qa="card-name">Additional Questions</h4>
+        <input type="hidden" name="cards[a6197d84-549e-4a91-8bb0-6af972510013][baseTemplate]" value="{}" />
+        <ul>
+          <li class="application-question custom-question">
+            <div>
+              <div class="application-label full-width dropdown"><div class="text">How did you hear about this position?<span class="required">✱</span></div></div>
+              <div class="application-field full-width required-field">
+                <div class="application-dropdown">
+                  <select name="cards[a6197d84-549e-4a91-8bb0-6af972510013][field0]" required>
+                    <option value="">Select...</option>
+                    <option value="Agency">Agency or Recruiter</option>
+                    <option value="BuiltIn">BuiltIn</option>
+                    <option value="Indeed">Indeed</option>
+                    <option value="LinkedIn">LinkedIn</option>
+                    <option value="University">University Career Centre</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </li>
+          <li class="application-question custom-question checkboxes">
+            <div>
+              <div class="application-label full-width checkboxes"><div class="text">Which languages do you speak fluently?<span class="required">✱</span></div></div>
+              <div class="application-field full-width required-field">
+                <ul data-qa="checkboxes">
+                  <li><label><input type="checkbox" name="cards[a6197d84-549e-4a91-8bb0-6af972510013][field1]" value="English (ENG)" /><span class="application-answer-alternative">English (ENG)</span></label></li>
+                  <li><label><input type="checkbox" name="cards[a6197d84-549e-4a91-8bb0-6af972510013][field1]" value="French (FRA)" /><span class="application-answer-alternative">French (FRA)</span></label></li>
+                  <li><label><input type="checkbox" name="cards[a6197d84-549e-4a91-8bb0-6af972510013][field1]" value="Spanish (SPA)" /><span class="application-answer-alternative">Spanish (SPA)</span></label></li>
+                  <li><label><input type="checkbox" name="cards[a6197d84-549e-4a91-8bb0-6af972510013][field1]" value="Arabic (ARA)" /><span class="application-answer-alternative">Arabic (ARA)</span></label></li>
+                </ul>
+              </div>
+            </div>
+          </li>
+          <li class="application-question custom-question">
+            <div>
+              <div class="application-label full-width text"><div class="text">Name Pronunciation | How do you pronounce your name?</div></div>
+              <div class="application-field full-width"><input class="card-field-input" type="text" placeholder="Type your response" name="cards[a6197d84-549e-4a91-8bb0-6af972510013][field2]" /></div>
+            </div>
+          </li>
+          <li class="application-question custom-question">
+            <div>
+              <div class="application-label full-width textarea"><div class="text">What interests you about robotics?</div></div>
+              <div class="application-field full-width"><textarea class="card-field-input" name="cards[a6197d84-549e-4a91-8bb0-6af972510013][field3]"></textarea></div>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="section page-centered application-form">
+        <h4>U.S. Equal Employment Opportunity information <span>(Completion is voluntary)</span></h4>
+        <ul>
+          <li class="application-question">
+            <div class="application-label">Gender</div>
+            <div class="application-field"><div class="application-dropdown">
+              <select name="eeo[gender]"><option value="">Select ...</option><option value="Male">Male</option><option value="Female">Female</option><option value="Decline to self-identify">Decline to self-identify</option></select>
+            </div></div>
+          </li>
+          <li class="application-question">
+            <div class="application-label">Race</div>
+            <div class="application-field"><div class="application-dropdown">
+              <select name="eeo[race]">
+                <option value="">Select ...</option>
+                <option>Hispanic or Latino</option><option>White (Not Hispanic or Latino)</option><option>Black or African American (Not Hispanic or Latino)</option>
+                <option>Native Hawaiian or Other Pacific Islander (Not Hispanic or Latino)</option><option>Asian (Not Hispanic or Latino)</option>
+                <option>American Indian or Alaska Native (Not Hispanic or Latino)</option><option>Two or More Races (Not Hispanic or Latino)</option><option>Decline to self-identify</option>
+              </select>
+            </div></div>
+          </li>
+          <li class="application-question">
+            <div class="application-label">Veteran status</div>
+            <div class="application-field"><div class="application-dropdown">
+              <select name="eeo[veteran]"><option value="">Select ...</option><option>I am a veteran</option><option>I am not a veteran</option><option>Decline to self-identify</option></select>
+            </div></div>
+          </li>
+        </ul>
+      </div>
+      <div class="section page-centered">
+        <button type="submit" class="postings-btn template-btn-submit" data-qa="btn-submit">Submit application</button>
+      </div>
+    </form>
+    <script>
+      // Location search, behaving like Lever's: results arrive after a short delay,
+      // and choosing one fills the box and a hidden field.
+      (function () {
+        var places = ['Windsor, ON, Canada', 'Windsor, UK', 'Windsor, CT, USA', 'Toronto, ON, Canada'];
+        var input = document.getElementById('location-input');
+        var hidden = document.getElementById('selected-location');
+        var box = document.querySelector('.dropdown-container');
+        var results = document.querySelector('.dropdown-results');
+        var timer;
+        input.addEventListener('input', function () {
+          hidden.value = '';
+          clearTimeout(timer);
+          var q = input.value.trim().toLowerCase();
+          if (q.length < 2) { box.classList.remove('open'); results.innerHTML = ''; return; }
+          timer = setTimeout(function () {
+            results.innerHTML = '';
+            places.filter(function (p) { return p.toLowerCase().indexOf(q) >= 0; }).forEach(function (p) {
+              var row = document.createElement('div');
+              row.textContent = p;
+              row.addEventListener('click', function () {
+                input.value = p;
+                hidden.value = JSON.stringify({ name: p });
+                box.classList.remove('open');
+                results.innerHTML = '';
+              });
+              results.appendChild(row);
+            });
+            box.classList.add('open');
+          }, 250);
+        });
+        window.__submitted = false;
+        document.getElementById('application-form').addEventListener('submit', function (e) { e.preventDefault(); window.__submitted = true; });
+        document.getElementById('resume-upload-input').addEventListener('change', function (e) {
+          document.querySelector('.filename').textContent = e.target.files[0] ? e.target.files[0].name : 'ATTACH RESUME/CV';
+        });
+      })();
+    </script>
+  </body>
+</html>

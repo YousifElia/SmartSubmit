@@ -2,6 +2,8 @@ import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
 import { serve, type Handlers } from '@/core/messages';
 import { dataHandlers } from '@/background/data';
+import { fileHandlers } from '@/background/files';
+import { pageHandlers } from '@/background/page';
 import { openDashboard } from '@/background/tabs';
 
 export default defineBackground({
@@ -21,6 +23,8 @@ export default defineBackground({
 
     const handlers: Partial<Handlers> = {
       ...dataHandlers,
+      ...pageHandlers,
+      ...fileHandlers,
     };
     serve(handlers);
   },

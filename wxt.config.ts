@@ -13,13 +13,21 @@ export default defineConfig({
   vite: () => ({
     plugins: [tailwindcss()],
   }),
-  manifest: ({ browser }) => ({
+  manifest: ({ browser, mode }) => ({
     name: 'SmartSubmit',
     short_name: 'SmartSubmit',
     description:
       'Autofill job applications, remember your answers, and tailor your resume with Claude or a local model.',
     permissions: ['storage', 'unlimitedStorage', 'activeTab', 'scripting', 'alarms', 'clipboardWrite'],
-    host_permissions: [...ATS_HOST_PATTERNS, 'http://localhost/*', 'http://127.0.0.1/*'],
+    host_permissions: [
+      ...ATS_HOST_PATTERNS,
+      'http://localhost/*',
+      'http://127.0.0.1/*',
+      // End-to-end test builds only (`--mode e2e`): the tests cannot click the
+      // toolbar button, which is what normally grants access to an unknown
+      // site, so the test build may reach the reserved `.example` domain.
+      ...(mode === 'e2e' ? ['*://*.example/*'] : []),
+    ],
     // Requested at runtime only, and only for the single origin involved, when
     // you point the local-model setting at a machine other than localhost.
     optional_host_permissions: ['*://*/*'],
