@@ -224,53 +224,76 @@ export class App {
   }
 }
 
+export interface LaunchOptions {
+  /**
+   * Real hosts this browser may reach, through the environment's proxy if it
+   * has one (the sync server, for instance). Everything else is served from
+   * the replicas or blocked.
+   */
+  network?: string[];
+}
+
+/** Launch Chromium with the built extension in a fresh profile. */
+export async function launchApp(options: LaunchOptions = {}): Promise<{ app: App; close: () => Promise<void> }> {
+  const profileDir = mkdtempSync(join(tmpdir(), 'smartsubmit-e2e-'));
+  const network = new Set(options.network ?? []);
+  const proxy = network.size > 0 && process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } : undefined;
+  const context = await chromium.launchPersistentContext(profileDir, {
+    channel: 'chromium',
+    headless: true,
+    viewport: { width: 1360, height: 950 },
+    args: [`--disable-extensions-except=${EXTENSION}`, `--load-extension=${EXTENSION}`],
+    proxy,
+  });
+
+  // Serve the replicas at the real hostnames; nothing else reaches the network.
+  await context.route('**/*', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.protocol === 'chrome-extension:') return route.fallback();
+    // Local test servers (a stand-in for Ollama) are reached for real.
+    if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') return route.continue();
+    if (network.has(url.hostname)) return route.continue();
+    const page = pageFor(url);
+    if (!page) return route.abort();
+    const isAsset = url.pathname.includes('/assets/');
+    const file = isAsset ? join(FIXTURES, 'assets', basename(url.pathname)) : join(FIXTURES, page);
+    const ext = file.split('.').pop() ?? 'html';
+    try {
+      await route.fulfill({ status: 200, contentType: TYPES[ext] ?? 'application/octet-stream', body: readFileSync(file) });
+    } catch {
+      await route.fulfill({ status: 404, body: 'Not found' });
+    }
+  });
+
+  let [worker] = context.serviceWorkers();
+  worker ??= await context.waitForEvent('serviceworker', { timeout: 20_000 });
+  const extensionId = worker.url().split('/')[2]!;
+
+  // Installing opens the dashboard on the setup screen; reuse that tab.
+  const dashboard =
+    context.pages().find((p) => p.url().includes('dashboard.html')) ??
+    (await context.waitForEvent('page', { predicate: (p) => p.url().includes('dashboard.html'), timeout: 10_000 }).catch(async () => {
+      const page = await context.newPage();
+      await page.goto(`chrome-extension://${extensionId}/dashboard.html`);
+      return page;
+    }));
+  await dashboard.waitForLoadState('domcontentloaded');
+
+  return {
+    app: new App(context, extensionId, dashboard),
+    close: async () => {
+      await context.close();
+      rmSync(profileDir, { recursive: true, force: true });
+    },
+  };
+}
+
 export const test = base.extend<{ app: App }>({
   // eslint-disable-next-line no-empty-pattern
   app: async ({}, use) => {
-    const profileDir = mkdtempSync(join(tmpdir(), 'smartsubmit-e2e-'));
-    const context = await chromium.launchPersistentContext(profileDir, {
-      channel: 'chromium',
-      headless: true,
-      viewport: { width: 1360, height: 950 },
-      args: [`--disable-extensions-except=${EXTENSION}`, `--load-extension=${EXTENSION}`],
-    });
-
-    // Serve the replicas at the real hostnames; nothing else reaches the network.
-    await context.route('**/*', async (route) => {
-      const url = new URL(route.request().url());
-      if (url.protocol === 'chrome-extension:') return route.fallback();
-      // Local test servers (a stand-in for Ollama) are reached for real.
-      if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') return route.continue();
-      const page = pageFor(url);
-      if (!page) return route.abort();
-      const isAsset = url.pathname.includes('/assets/');
-      const file = isAsset ? join(FIXTURES, 'assets', basename(url.pathname)) : join(FIXTURES, page);
-      const ext = file.split('.').pop() ?? 'html';
-      try {
-        await route.fulfill({ status: 200, contentType: TYPES[ext] ?? 'application/octet-stream', body: readFileSync(file) });
-      } catch {
-        await route.fulfill({ status: 404, body: 'Not found' });
-      }
-    });
-
-    let [worker] = context.serviceWorkers();
-    worker ??= await context.waitForEvent('serviceworker', { timeout: 20_000 });
-    const extensionId = worker.url().split('/')[2]!;
-
-    // Installing opens the dashboard on the setup screen; reuse that tab.
-    const dashboard =
-      context.pages().find((p) => p.url().includes('dashboard.html')) ??
-      (await context.waitForEvent('page', { predicate: (p) => p.url().includes('dashboard.html'), timeout: 10_000 }).catch(async () => {
-        const page = await context.newPage();
-        await page.goto(`chrome-extension://${extensionId}/dashboard.html`);
-        return page;
-      }));
-    await dashboard.waitForLoadState('domcontentloaded');
-
-    await use(new App(context, extensionId, dashboard));
-
-    await context.close();
-    rmSync(profileDir, { recursive: true, force: true });
+    const { app, close } = await launchApp();
+    await use(app);
+    await close();
   },
 });
 

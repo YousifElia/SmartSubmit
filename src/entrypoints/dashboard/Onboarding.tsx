@@ -99,7 +99,7 @@ const STEPS: Step[] = [
   },
 ];
 
-function Welcome({ onStart }: { onStart: () => void }) {
+function Welcome({ onStart, onSignIn }: { onStart: () => void; onSignIn: () => void }) {
   const points: { icon: ReactNode; title: string; body: string }[] = [
     {
       icon: <MousePointerClick size={18} />,
@@ -142,6 +142,13 @@ function Welcome({ onStart }: { onStart: () => void }) {
       <Button variant="primary" className="mt-8 px-6 py-2.5" onClick={onStart} icon={<ArrowRight size={16} />}>
         Get started
       </Button>
+      <p className="mt-4 text-[13px] text-slate-500">
+        Already use SmartSubmit in another browser?{' '}
+        <button type="button" className="font-medium text-brand-700 hover:underline" onClick={onSignIn}>
+          Sign in to sync
+        </button>{' '}
+        and skip the typing.
+      </p>
     </div>
   );
 }
@@ -171,6 +178,12 @@ function Done({ onDone }: { onDone: () => void }) {
 export function Onboarding({ onDone }: { onDone: () => void | Promise<void> }) {
   // -1 is the welcome screen; STEPS.length is the closing screen.
   const [index, setIndex] = useState(-1);
+  // How far the person has gone step by step; jumping ahead doesn't tick steps off.
+  const [reached, setReached] = useState(0);
+  const advance = () => {
+    setReached((r) => Math.max(r, index + 1));
+    setIndex(index + 1);
+  };
   const { profile, setProfile, status } = useProfileEditor();
 
   if (!profile) {
@@ -184,7 +197,7 @@ export function Onboarding({ onDone }: { onDone: () => void | Promise<void> }) {
   if (index < 0) {
     return (
       <div className="flex min-h-screen items-center px-6 py-12">
-        <Welcome onStart={() => setIndex(0)} />
+        <Welcome onStart={() => setIndex(0)} onSignIn={() => setIndex(STEPS.findIndex((s) => s.id === 'sync'))} />
       </div>
     );
   }
@@ -214,7 +227,7 @@ export function Onboarding({ onDone }: { onDone: () => void | Promise<void> }) {
                   aria-current={i === index ? 'step' : undefined}
                   className={cx(
                     'flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13px] font-medium transition-colors',
-                    i === index ? 'text-brand-700' : i < index ? 'text-slate-600 hover:text-ink' : 'text-slate-400 hover:text-slate-600',
+                    i === index ? 'text-brand-700' : i < reached ? 'text-slate-600 hover:text-ink' : 'text-slate-400 hover:text-slate-600',
                   )}
                 >
                   <span
@@ -222,12 +235,12 @@ export function Onboarding({ onDone }: { onDone: () => void | Promise<void> }) {
                       'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold',
                       i === index
                         ? 'bg-brand-600 text-white'
-                        : i < index
+                        : i < reached
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-slate-200 text-slate-500',
                     )}
                   >
-                    {i < index ? <Check size={11} strokeWidth={3} /> : i + 1}
+                    {i !== index && i < reached ? <Check size={11} strokeWidth={3} /> : i + 1}
                   </span>
                   {s.short}
                 </button>
@@ -257,10 +270,10 @@ export function Onboarding({ onDone }: { onDone: () => void | Promise<void> }) {
             <span className="text-xs text-slate-400" aria-live="polite">
               {status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved' : ''}
             </span>
-            <Button variant="ghost" onClick={() => setIndex(index + 1)}>
+            <Button variant="ghost" onClick={advance}>
               Skip
             </Button>
-            <Button variant="primary" onClick={() => setIndex(index + 1)}>
+            <Button variant="primary" onClick={advance}>
               {index === STEPS.length - 1 ? 'Finish' : 'Continue'}
               <ArrowRight size={16} />
             </Button>

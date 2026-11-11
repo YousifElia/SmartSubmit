@@ -299,7 +299,13 @@ function SignedOut({
   const [resetEmail, setResetEmail] = useState('');
 
   if (mode === 'server') return <ServerSetup settings={settings} update={update} onDone={() => setMode('signIn')} />;
-  if (mode === 'reset') return <ResetPassword status={status} initialEmail={resetEmail} onBack={() => setMode('signIn')} />;
+  if (mode === 'reset') {
+    return (
+      <div className="max-w-md">
+        <ResetPassword status={status} initialEmail={resetEmail} onBack={() => setMode('signIn')} />
+      </div>
+    );
+  }
   return (
     <div className="space-y-5">
       {!compact && (
