@@ -37,8 +37,17 @@ export default defineConfig({
           browser_specific_settings: {
             gecko: {
               id: 'smartsubmit@yousifelia.github.io',
-              strict_min_version: '128.0',
+              // The first version with Firefox's built-in data consent.
+              strict_min_version: '140.0',
+              // Nothing leaves the browser unless the person turns on sync, or
+              // points AI at a model on another machine; Firefox asks first
+              // (see src/core/consent.ts).
+              data_collection_permissions: {
+                required: ['none'],
+                optional: ['personallyIdentifyingInfo', 'websiteContent'],
+              },
             },
+            gecko_android: { strict_min_version: '142.0' },
           },
         }
       : { minimum_chrome_version: '116' }),

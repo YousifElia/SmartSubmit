@@ -1,8 +1,8 @@
 /** Setting up AI: the claude.ai handoff (always available) and an optional local model. */
 import { useEffect, useState, type ReactNode } from 'react';
 import { Check, CircleAlert, Copy, Cpu, MessageSquareQuote, RefreshCw } from 'lucide-react';
-import { browser } from 'wxt/browser';
 import { AiError, clientFor, isLocal } from '@/core/ai/providers';
+import { askToSend } from '@/core/consent';
 import type { AiProvider, Settings } from '@/core/types';
 import { copyText } from '../clipboard';
 import { useSettings } from '../hooks';
@@ -99,15 +99,16 @@ const PROVIDERS: { value: Exclude<AiProvider, 'none'>; label: string }[] = [
   { value: 'openai-compat', label: 'Other local server' },
 ];
 
-/** Ask for access to a model server that isn't on this computer. */
-async function ensureAccess(url: string): Promise<boolean> {
-  if (isLocal(url)) return true;
+/**
+ * Ask for access to a model server that isn't on this computer, and (in
+ * Firefox) to send it data. One prompt, straight from the click.
+ */
+function ensureAccess(url: string): Promise<boolean> {
+  if (isLocal(url)) return Promise.resolve(true);
   try {
-    const origin = `${new URL(url).origin}/*`;
-    if (await browser.permissions.contains({ origins: [origin] })) return true;
-    return await browser.permissions.request({ origins: [origin] });
+    return askToSend([`${new URL(url).origin}/*`]);
   } catch {
-    return false;
+    return Promise.resolve(false);
   }
 }
 

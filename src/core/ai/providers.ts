@@ -6,10 +6,11 @@
  * those have the host permission to reach the server, and the server sees a
  * browser-extension origin, which Ollama must be told to allow.
  */
+import { maySend } from '../consent';
 import type { Settings } from '../types';
 import type { Prompt } from './prompts';
 
-export type AiErrorKind = 'origin' | 'unreachable' | 'model' | 'server' | 'cancelled' | 'empty';
+export type AiErrorKind = 'origin' | 'unreachable' | 'model' | 'server' | 'cancelled' | 'empty' | 'consent';
 
 export class AiError extends Error {
   constructor(
@@ -44,6 +45,10 @@ function trimSlash(url: string): string {
 }
 
 async function request(url: string, init: RequestInit, label: string): Promise<Response> {
+  // A model on another machine receives the resume and the job's text.
+  if (!isLocal(url) && !(await maySend())) {
+    throw new AiError('consent', `Firefox hasn’t allowed SmartSubmit to send data to ${new URL(url).origin}. Press “Check connection” in AI settings to allow it.`);
+  }
   try {
     return await fetch(url, init);
   } catch (error) {

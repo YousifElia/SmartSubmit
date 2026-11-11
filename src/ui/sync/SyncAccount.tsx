@@ -9,6 +9,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Cloud, CloudOff, KeyRound, LogOut, MailCheck, RefreshCw, ServerCog, ShieldCheck, Trash2 } from 'lucide-react';
 import { send, type AuthResult, type SyncStatus } from '@/core/messages';
+import { askToSend } from '@/core/consent';
 import { MIN_PASSWORD } from '@/core/sync/policy';
 import type { Settings } from '@/core/types';
 import { useLive, useSettings } from '../hooks';
@@ -116,6 +117,13 @@ function PasswordFields({
 
 const validNew = (password: string, confirm: string) => password.length >= MIN_PASSWORD && password === confirm;
 
+const NOT_ALLOWED: AuthResult = { ok: false, error: 'Sync sends your data, encrypted, to your sync server. Firefox needs your permission for that: allow it when asked.' };
+
+/** Sign in, create or reset, after Firefox's consent to send data (asked from the click itself). */
+function withConsent(request: () => Promise<AuthResult>): () => Promise<AuthResult> {
+  return async () => ((await askToSend()) ? request() : NOT_ALLOWED);
+}
+
 // ───────────────────────────── Server ─────────────────────────────
 
 function ServerSetup({ settings, update, onDone }: { settings: Settings; update: (fn: (s: Settings) => Settings) => Promise<void>; onDone?: () => void }) {
@@ -184,7 +192,7 @@ function SignIn({ status, onForgot }: { status: SyncStatus; onForgot: (email: st
   const [password, setPassword] = useState('');
   const { busy, error, run } = useRequest();
   return (
-    <Form onSubmit={() => void run(() => send('auth.signIn', { email, password }))}>
+    <Form onSubmit={() => void run(withConsent(() => send('auth.signIn', { email, password })))}>
       <TextField label="Email" type="email" autoComplete="username" value={email} onChange={setEmail} />
       <TextField label="Password" type="password" autoComplete="current-password" value={password} onChange={setPassword} />
       {error && <Notice tone="red">{error}</Notice>}
@@ -210,7 +218,7 @@ function CreateAccount() {
   const [understood, setUnderstood] = useState(false);
   const { busy, error, run } = useRequest();
   return (
-    <Form onSubmit={() => void run(() => send('auth.signUp', { email, password }))}>
+    <Form onSubmit={() => void run(withConsent(() => send('auth.signUp', { email, password })))}>
       <TextField label="Email" type="email" autoComplete="username" value={email} onChange={setEmail} />
       <PasswordFields password={password} setPassword={setPassword} confirm={confirm} setConfirm={setConfirm} />
       <Notice tone="amber">
@@ -257,7 +265,7 @@ function ResetPassword({ status, initialEmail, onBack }: { status: SyncStatus; i
     );
   }
   return (
-    <Form onSubmit={() => void run(() => send('auth.completeReset', { email, code, password }))}>
+    <Form onSubmit={() => void run(withConsent(() => send('auth.completeReset', { email, code, password })))}>
       <p className="text-[13px] leading-relaxed text-slate-600">
         If an account exists for <b className="font-medium text-ink">{email}</b>, a code is on its way. Enter it with your new password.
       </p>

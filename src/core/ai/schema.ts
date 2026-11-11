@@ -8,6 +8,10 @@ import { z } from 'zod';
 import { emptyResumeDoc } from '../defaults';
 import type { ResumeDoc, TailorChange } from '../types';
 
+// Never generate code at runtime: extension pages forbid it, and zod would
+// otherwise probe for it with `Function('')`.
+z.config({ jitless: true });
+
 const str = z.string();
 const list = z.array(z.string());
 

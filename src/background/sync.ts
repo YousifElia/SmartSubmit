@@ -4,6 +4,7 @@
  * change, and when the browser starts).
  */
 import { browser } from 'wxt/browser';
+import { maySend } from '@/core/consent';
 import type { AuthResult, Handlers, SyncStatus } from '@/core/messages';
 import * as db from '@/core/storage/db';
 import { createAccount, type AccountRecord, type SyncAccountApi } from '@/core/sync/account';
@@ -60,6 +61,8 @@ function runSync(): Promise<void> {
     try {
       const found = await account().catch(() => null);
       if (!found || (await found.status()).state !== 'ready') return;
+      // Firefox lets people withdraw permission to send data; then sync waits.
+      if (!(await maySend())) return;
       await browser.storage.local.set({ [SYNCING_KEY]: Date.now() });
       do {
         again = false;
@@ -88,9 +91,11 @@ async function status(): Promise<SyncStatus> {
   const empty: SyncStatus = { configured: false, state: 'signedOut', email: '', lastSyncAt: null, syncing: false, pending: 0, error: '', holdsKey: false };
   if (!found) return empty;
   const [state, dirty, dirtyFiles] = await Promise.all([found.status(), db.getDirty(), db.getDirtyFiles()]);
+  const paused = state.state === 'ready' && !(await maySend());
   return {
     ...empty,
     ...state,
+    error: paused ? 'Sync is paused: Firefox’s permission for SmartSubmit to send data is off. Turn it back on in the add-on’s Permissions settings.' : state.error,
     configured: true,
     syncing: running !== null,
     pending: state.state === 'ready' ? Object.keys(dirty).length + Object.keys(dirtyFiles).length : 0,
