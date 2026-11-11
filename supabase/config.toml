@@ -1,0 +1,23 @@
+# The sync server's settings for the Supabase CLI: `supabase start` runs it
+# locally, and `supabase config push` applies the auth settings below to a
+# linked hosted project. Anything not set here keeps Supabase's default.
+project_id = "smartsubmit"
+
+[auth]
+# Where links in emails lead once followed. SmartSubmit doesn't need the
+# page to exist: following the link is what confirms the address.
+site_url = "http://127.0.0.1:3000"
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+
+# Both emails carry a code, because a browser extension can't receive the
+# redirect a link would make. The password reset needs it.
+[auth.email.template.confirmation]
+subject = "Confirm your SmartSubmit sync account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your SmartSubmit sync password"
+content_path = "./supabase/templates/recovery.html"
