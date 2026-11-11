@@ -39,8 +39,8 @@ export type DirtyMap = Record<string, number>;
 export type DirtyFiles = Record<string, 'put' | 'del'>;
 
 export type Mutation =
-  | { op: 'put'; collection: CollectionName; id: string; data: unknown; updatedAt?: number }
-  | { op: 'remove'; collection: CollectionName; id: string; updatedAt?: number }
+  | { op: 'put'; collection: CollectionName; id: string; data: unknown; updatedAt?: number; expect?: number | null }
+  | { op: 'remove'; collection: CollectionName; id: string; updatedAt?: number; expect?: number | null }
   | { op: 'putFile'; id: string; base64: string }
   | { op: 'removeFile'; id: string }
   | { op: 'settings'; value: Settings };
@@ -48,10 +48,15 @@ export type Mutation =
 export interface MutateOptions {
   /**
    * The change came from the server. It is applied without being marked
-   * dirty, otherwise every pull would immediately be pushed back.
+   * dirty, otherwise every pull would immediately be pushed back, and it
+   * settles any local change it replaces.
    */
   fromSync?: boolean;
 }
+
+// A record mutation may carry `expect`: apply it only while the record's
+// current `updatedAt` is that value (null: only while there is no record).
+// Sync sets it, so an edit made while sync was deciding is never overwritten.
 
 // ───────────────────────────── Reads ─────────────────────────────
 
@@ -143,55 +148,80 @@ export function mutate(mutations: Mutation[], options: MutateOptions = {}): Prom
 async function applyNow(mutations: Mutation[], options: MutateOptions): Promise<void> {
   const now = Date.now();
   const set: Record<string, unknown> = {};
-  const del: string[] = [];
+  const del = new Set<string>();
 
-  // Load the indexes and dirty maps this batch touches.
+  // Load the indexes, dirty maps and current records this batch depends on.
   const touched = new Set<CollectionName>();
+  const current = new Set<string>();
   let touchesFiles = false;
   for (const m of mutations) {
-    if (m.op === 'put' || m.op === 'remove') touched.add(m.collection);
+    if (m.op === 'put' || m.op === 'remove') {
+      touched.add(m.collection);
+      // A local edit moves on from the version it replaces (see below).
+      if (m.expect !== undefined || (!options.fromSync && m.updatedAt === undefined)) current.add(recKey(m.collection, m.id));
+    }
     if (m.op === 'putFile' || m.op === 'removeFile') touchesFiles = true;
   }
-  const loadKeys = [...touched].map(idxKey);
-  if (!options.fromSync) {
-    if (touched.size > 0) loadKeys.push(DIRTY_KEY);
-    if (touchesFiles) loadKeys.push(DIRTY_FILES_KEY);
-  }
+  const loadKeys = [...touched].map(idxKey).concat([...current]);
+  if (touched.size > 0) loadKeys.push(DIRTY_KEY);
+  if (touchesFiles && !options.fromSync) loadKeys.push(DIRTY_FILES_KEY);
   const loaded = loadKeys.length > 0 ? await browser.storage.local.get(loadKeys) : {};
   const indexes = new Map<CollectionName, Set<string>>();
   for (const c of touched) indexes.set(c, new Set((loaded[idxKey(c)] as string[] | undefined) ?? []));
+  const versions = new Map<string, Rec<unknown> | undefined>();
+  for (const key of current) versions.set(key, loaded[key] as Rec<unknown> | undefined);
   const dirty: DirtyMap = { ...((loaded[DIRTY_KEY] as DirtyMap | undefined) ?? {}) };
   const dirtyFiles: DirtyFiles = { ...((loaded[DIRTY_FILES_KEY] as DirtyFiles | undefined) ?? {}) };
+  let dirtyChanged = false;
 
   for (const m of mutations) {
     switch (m.op) {
-      case 'put': {
-        const updatedAt = m.updatedAt ?? now;
-        set[recKey(m.collection, m.id)] = { id: m.id, updatedAt, data: m.data } satisfies Rec<unknown>;
-        indexes.get(m.collection)!.add(m.id);
-        if (!options.fromSync) dirty[`${m.collection}/${m.id}`] = updatedAt;
-        break;
-      }
+      case 'put':
       case 'remove': {
-        const updatedAt = m.updatedAt ?? now;
-        indexes.get(m.collection)!.delete(m.id);
-        if (options.fromSync) {
-          // The server already knows; nothing to remember locally.
-          del.push(recKey(m.collection, m.id));
-          delete set[recKey(m.collection, m.id)];
+        const key = recKey(m.collection, m.id);
+        const existing = versions.get(key);
+        if (m.expect !== undefined && (existing?.updatedAt ?? null) !== m.expect) break;
+        // Never go back in time: a device whose clock runs behind another's
+        // would otherwise lose its edits to the version it just replaced.
+        const updatedAt = m.updatedAt ?? Math.max(now, (existing?.updatedAt ?? 0) + 1);
+        const dirtyKey = `${m.collection}/${m.id}`;
+        let rec: Rec<unknown> | undefined;
+        if (m.op === 'put') {
+          rec = { id: m.id, updatedAt, data: m.data };
+          indexes.get(m.collection)!.add(m.id);
         } else {
-          // Keep a marker until sync has told the server.
-          set[recKey(m.collection, m.id)] = { id: m.id, updatedAt, deleted: true, data: null };
-          dirty[`${m.collection}/${m.id}`] = updatedAt;
+          indexes.get(m.collection)!.delete(m.id);
+          // Locally, keep a marker until sync has told the server. A deletion
+          // from the server needs none.
+          rec = options.fromSync ? undefined : { id: m.id, updatedAt, deleted: true, data: null };
+        }
+        if (rec) {
+          set[key] = rec;
+          del.delete(key);
+        } else {
+          delete set[key];
+          del.add(key);
+        }
+        versions.set(key, rec);
+        if (options.fromSync) {
+          // The server's version replaces whatever was waiting to be sent.
+          if (dirtyKey in dirty) {
+            delete dirty[dirtyKey];
+            dirtyChanged = true;
+          }
+        } else {
+          dirty[dirtyKey] = updatedAt;
+          dirtyChanged = true;
         }
         break;
       }
       case 'putFile':
         set[fileKey(m.id)] = m.base64;
+        del.delete(fileKey(m.id));
         if (!options.fromSync) dirtyFiles[m.id] = 'put';
         break;
       case 'removeFile':
-        del.push(fileKey(m.id));
+        del.add(fileKey(m.id));
         delete set[fileKey(m.id)];
         if (!options.fromSync) dirtyFiles[m.id] = 'del';
         break;
@@ -202,13 +232,11 @@ async function applyNow(mutations: Mutation[], options: MutateOptions): Promise<
   }
 
   for (const [c, ids] of indexes) set[idxKey(c)] = [...ids];
-  if (!options.fromSync) {
-    if (touched.size > 0) set[DIRTY_KEY] = dirty;
-    if (touchesFiles) set[DIRTY_FILES_KEY] = dirtyFiles;
-  }
+  if (dirtyChanged) set[DIRTY_KEY] = dirty;
+  if (touchesFiles && !options.fromSync) set[DIRTY_FILES_KEY] = dirtyFiles;
 
   if (Object.keys(set).length > 0) await browser.storage.local.set(set);
-  if (del.length > 0) await browser.storage.local.remove(del);
+  if (del.size > 0) await browser.storage.local.remove([...del]);
 }
 
 /** Forget that records were dirty, once they have been pushed. */
@@ -251,6 +279,30 @@ export function markAllDirty(): Promise<void> {
     }
     await browser.storage.local.set({ [DIRTY_KEY]: dirty, [DIRTY_FILES_KEY]: dirtyFiles });
   });
+}
+
+/** Mark particular records and files dirty: used when joining an account that lacks them. */
+export function markDirty(records: string[], files: string[]): Promise<void> {
+  if (records.length === 0 && files.length === 0) return Promise.resolve();
+  return serial(async () => {
+    const dirty = await getDirty();
+    for (const key of records) {
+      const [collection, id] = splitDirtyKey(key);
+      const rec = await getRec(collection, id);
+      if (rec && !rec.deleted) dirty[key] = rec.updatedAt;
+    }
+    const dirtyFiles = await getDirtyFiles();
+    for (const id of files) if ((await getFile(id)) !== null) dirtyFiles[id] = 'put';
+    await browser.storage.local.set({ [DIRTY_KEY]: dirty, [DIRTY_FILES_KEY]: dirtyFiles });
+  });
+}
+
+/** Ids of every file stored on this device. */
+export async function fileIds(): Promise<string[]> {
+  const all = await browser.storage.local.get(null);
+  return Object.keys(all)
+    .filter((key) => key.startsWith('f/'))
+    .map((key) => key.slice(2));
 }
 
 export function splitDirtyKey(key: string): [CollectionName, string] {

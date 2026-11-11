@@ -52,6 +52,46 @@ describe('record store', () => {
     expect(Object.keys(await db.getDirty())).toEqual(['answers/a1']);
   });
 
+  it('never moves a record back in time when it is edited here', async () => {
+    const future = Date.now() + 60_000;
+    await db.mutate([{ op: 'put', collection: 'answers', id: 'a1', data: answer('a1', 'From a fast clock'), updatedAt: future }], { fromSync: true });
+    await db.put('answers', 'a1', answer('a1', 'Edited here'));
+    expect((await db.getRec('answers', 'a1'))?.updatedAt).toBe(future + 1);
+    await db.remove('answers', 'a1');
+    expect((await db.getRec('answers', 'a1'))?.updatedAt).toBe(future + 2);
+  });
+
+  it('applies a guarded change from sync only while the record is as expected', async () => {
+    await db.mutate([{ op: 'put', collection: 'answers', id: 'a1', data: answer('a1', 'v1'), updatedAt: 10 }], { fromSync: true });
+    await db.mutate([{ op: 'put', collection: 'answers', id: 'a1', data: answer('a1', 'stale'), updatedAt: 30, expect: 5 }], { fromSync: true });
+    expect((await db.get('answers', 'a1'))?.question).toBe('v1');
+    await db.mutate([{ op: 'put', collection: 'answers', id: 'a1', data: answer('a1', 'v2'), updatedAt: 30, expect: 10 }], { fromSync: true });
+    expect((await db.get('answers', 'a1'))?.question).toBe('v2');
+    await db.mutate([{ op: 'put', collection: 'answers', id: 'a2', data: answer('a2', 'new'), updatedAt: 30, expect: null }], { fromSync: true });
+    expect((await db.get('answers', 'a2'))?.question).toBe('new');
+  });
+
+  it('settles a pending local change when sync replaces it', async () => {
+    await db.put('answers', 'a1', answer('a1', 'Local'));
+    const rec = await db.getRec('answers', 'a1');
+    await db.mutate([{ op: 'put', collection: 'answers', id: 'a1', data: answer('a1', 'Newer remote'), updatedAt: rec!.updatedAt + 10, expect: rec!.updatedAt }], {
+      fromSync: true,
+    });
+    expect(await db.getDirty()).toEqual({});
+  });
+
+  it('can put a record back in the same batch that removed it', async () => {
+    await db.put('answers', 'a1', answer('a1', 'v1'));
+    await db.mutate(
+      [
+        { op: 'remove', collection: 'answers', id: 'a1', updatedAt: 5 },
+        { op: 'put', collection: 'answers', id: 'a1', data: answer('a1', 'back'), updatedAt: 6 },
+      ],
+      { fromSync: true },
+    );
+    expect((await db.get('answers', 'a1'))?.question).toBe('back');
+  });
+
   it('deletes outright when the deletion came from sync', async () => {
     await db.mutate([{ op: 'put', collection: 'answers', id: 'a1', data: answer('a1', 'Remote') }], { fromSync: true });
     await db.mutate([{ op: 'remove', collection: 'answers', id: 'a1' }], { fromSync: true });
