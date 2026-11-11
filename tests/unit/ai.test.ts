@@ -117,6 +117,12 @@ describe('guardTailored', () => {
     expect(result.doc).toEqual(honest);
   });
 
+  it('does not report contact details as changed when only their key order differs', () => {
+    // Extension storage returns objects with their keys in a different order.
+    const stored = { ...original, basics: { links: original.basics.links, phone: original.basics.phone, name: original.basics.name, location: original.basics.location, email: original.basics.email } };
+    expect(guardTailored(stored, originalText, structuredClone(original)).restored).toEqual([]);
+  });
+
   it('puts back titles, dates and contact details the model changed', () => {
     const edited = structuredClone(original);
     edited.basics.email = 'someone@else.com';

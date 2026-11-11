@@ -5,6 +5,7 @@ import { jobFileName, renderJobPdf } from '@/core/pdf/jobTemplate';
 import * as db from '@/core/storage/db';
 import type { Job, JobStatus, RichBlock } from '@/core/types';
 import { bytesToBase64 } from '@/core/util/base64';
+import { deepEqual } from '@/core/util/equal';
 import { newId } from '@/core/util/id';
 import { loadFonts } from './fonts';
 
@@ -51,7 +52,7 @@ export async function upsertJob(capture: JobCapture, status?: JobStatus, resume?
     if (RANK[status] >= RANK.applied && !job.appliedAt) job.appliedAt = now;
   }
   if (resume) job.resumeRef = resume;
-  if (!existing || JSON.stringify(existing) !== JSON.stringify(job)) await db.put('jobs', job.id, job);
+  if (!existing || !deepEqual(existing, job)) await db.put('jobs', job.id, job);
   return job;
 }
 

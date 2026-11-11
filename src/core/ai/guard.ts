@@ -9,6 +9,7 @@
 import { dice, norm } from '../autofill/text';
 import { mentions } from '../jobs/keywords';
 import type { ResumeDoc } from '../types';
+import { deepEqual } from '../util/equal';
 
 export interface GuardResult {
   doc: ResumeDoc;
@@ -64,7 +65,7 @@ export function guardTailored(original: ResumeDoc, originalText: string, tailore
   const doc: ResumeDoc = structuredClone(tailored);
 
   // Contact details are never the model's to change.
-  if (JSON.stringify(doc.basics) !== JSON.stringify(original.basics)) restored.push('Contact details');
+  if (!deepEqual(doc.basics, original.basics)) restored.push('Contact details');
   doc.basics = structuredClone(original.basics);
 
   /** Bullets with a number the original doesn't have go back to their original wording. */
