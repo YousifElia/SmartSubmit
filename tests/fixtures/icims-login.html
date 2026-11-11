@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- Replica of iCIMS's sign-in step inside the career site's iframe. Invented content. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Login | Careers at Northwind Systems</title>
+    <style>body { font-family: Arial, sans-serif; padding: 16px; } .form-control { width: 320px; padding: 6px; }</style>
+  </head>
+  <body>
+    <div class="iCIMS_MainWrapper">
+      <h1 class="iCIMS_Header">Software Developer Co-op</h1>
+      <form id="enterEmailForm" method="post" action="#">
+        <label for="email">Email</label>
+        <input type="email" autocomplete="email" id="email" name="css_loginName" class="form-control" />
+        <p><input type="checkbox" id="accept_gdpr" name="accept_gdpr" /> <label for="accept_gdpr">I agree</label> to the privacy policy.</p>
+        <textarea id="h-captcha-response-1" name="h-captcha-response" style="display: none"></textarea>
+        <input type="submit" id="enterEmailSubmitButton" class="iCIMS_PrimaryButton" value="Next" />
+      </form>
+    </div>
+    <script>
+      window.__submitted = false;
+      document.getElementById('enterEmailForm').addEventListener('submit', (e) => { e.preventDefault(); window.__submitted = true; });
+    </script>
+  </body>
+</html>

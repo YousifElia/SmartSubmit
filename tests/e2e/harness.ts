@@ -27,6 +27,8 @@ export const PAGES = {
   ashby: 'https://jobs.ashbyhq.com/acme/34413f8d-26bf-4bbc-8ade-eb309a0e2245/application',
   generic: 'https://careers.mapleleaf.example/apply',
   workday: 'https://acme.wd3.myworkdayjobs.com/en-US/AcmeCareers/job/CA-ON-Toronto/Software-Developer--Robotics-Platform_JR1234567/apply/applyManually',
+  icims: 'https://careers-northwind.icims.com/jobs/1234/software-developer-co-op/candidate',
+  icimsLogin: 'https://careers-northwind.icims.com/jobs/1234/software-developer-co-op/login',
 } as const;
 
 const FILE_FOR_HOST: Record<string, string> = {
@@ -40,6 +42,13 @@ const FILE_FOR_HOST: Record<string, string> = {
 /** The replica page for a URL: on Lever, the posting and its application form are separate pages. */
 function pageFor(url: URL): string | undefined {
   if (url.hostname === 'jobs.lever.co' && !/\/apply\/?$/.test(url.pathname)) return 'lever-posting.html';
+  // iCIMS: a wrapper page, and its iframe showing the posting, the sign-in step or the application.
+  if (url.hostname === 'careers-northwind.icims.com') {
+    if (url.searchParams.get('in_iframe') !== '1') return 'icims.html';
+    if (url.pathname.endsWith('/login')) return 'icims-login.html';
+    if (url.pathname.endsWith('/job')) return 'icims-job.html';
+    return 'icims-form.html';
+  }
   // Workday's public job data, which its pages load from the same host.
   if (url.hostname.endsWith('.myworkdayjobs.com') && url.pathname.startsWith('/wday/cxs/')) return '../workday-job.json';
   return FILE_FOR_HOST[url.hostname];

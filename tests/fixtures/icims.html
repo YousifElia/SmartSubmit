@@ -1,0 +1,33 @@
+<!doctype html>
+<!--
+  Replica of an iCIMS career site's wrapper page: the employer's header, and
+  the iCIMS content in an iframe from the same host (`in_iframe=1`), grown to
+  the height of its content the way iCIMS's own resizer does, so it is the
+  outer page that scrolls. The content is invented.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Careers at Northwind Systems</title>
+    <style>
+      body { margin: 0; font-family: Arial, sans-serif; }
+      header { background: #12355b; color: #fff; padding: 28px 24px; font-size: 22px; }
+      main { max-width: 900px; margin: 0 auto; padding: 16px; }
+      footer { padding: 40px 24px; background: #eee; }
+    </style>
+  </head>
+  <body>
+    <header>Northwind Systems · Careers</header>
+    <main>
+      <iframe id="icims_content_iframe" name="icims_content_iframe" title="iCIMS Content iFrame" style="width: 100%; border: none; margin: 0" height="500"></iframe>
+    </main>
+    <footer>© Northwind Systems</footer>
+    <script>
+      const frame = document.getElementById('icims_content_iframe');
+      frame.addEventListener('load', () => {
+        frame.height = String(frame.contentDocument.documentElement.scrollHeight + 40);
+      });
+      frame.src = location.pathname + '?in_iframe=1';
+    </script>
+  </body>
+</html>

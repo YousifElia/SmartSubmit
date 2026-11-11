@@ -21,7 +21,8 @@
   --red: #b91c1c;
 
   position: fixed;
-  top: 16px;
+  /* Moved down inside a frame stretched to its content (see index.tsx). */
+  top: var(--ss-top, 16px);
   z-index: 2147483646;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 13px;
@@ -91,7 +92,7 @@
   display: flex;
   flex-direction: column;
   width: 348px;
-  max-height: calc(100vh - 32px);
+  max-height: var(--ss-max-height, calc(100vh - 32px));
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 16px 48px rgba(23, 20, 43, 0.22), 0 0 0 1px rgba(23, 20, 43, 0.07);

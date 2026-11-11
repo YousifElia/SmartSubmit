@@ -2,6 +2,7 @@ import type { SiteId } from '../../sites';
 import { ashby } from './ashby';
 import { generic } from './generic';
 import { greenhouse } from './greenhouse';
+import { icims } from './icims';
 import { lever } from './lever';
 import type { SiteAdapter } from './types';
 import { workday } from './workday';
@@ -11,6 +12,7 @@ const ADAPTERS: Partial<Record<SiteId, SiteAdapter>> = {
   lever,
   ashby,
   workday,
+  icims,
   generic,
 };
 

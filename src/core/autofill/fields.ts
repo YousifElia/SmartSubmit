@@ -300,6 +300,23 @@ function hiddenFromPeople(el: HTMLElement): boolean {
   return rect.right + (view?.scrollX ?? 0) < 0 || rect.bottom + (view?.scrollY ?? 0) < 0;
 }
 
+/**
+ * A native select hidden behind an enhanced dropdown (Select2, Chosen,
+ * bootstrap-select, Choices, iCIMS's own): the visible part standing in for
+ * it. The select still holds the answer the form sends, and these widgets
+ * follow its change events, so it is the select that gets filled.
+ */
+function enhancedWidget(select: HTMLSelectElement): HTMLElement | null {
+  const shown = (el: Element | null): el is HTMLElement => !!el && el instanceof HTMLElement && el.getClientRects().length > 0;
+  const looksLikeOne = (el: Element) => /select2|chosen|selectpicker|bootstrap-select|choices|dropdown|combobox|listbox/i.test(`${typeof el.className === 'string' ? el.className : ''} ${el.getAttribute('role') ?? ''} ${el.getAttribute('aria-haspopup') ?? ''}`);
+  for (let sibling = select.nextElementSibling; sibling; sibling = sibling.nextElementSibling) {
+    if (shown(sibling) && (looksLikeOne(sibling) || sibling.querySelector('[aria-haspopup="listbox"], [role="combobox"]'))) return sibling;
+  }
+  const wrapper = select.parentElement;
+  if (wrapper && shown(wrapper) && looksLikeOne(wrapper)) return wrapper;
+  return null;
+}
+
 /** Wording that marks a field as a trap for robots. */
 const TRAP_LABEL =
   /\b(for|only for) (robots?|bots?|spam ?bots?)\b|\brobots? only\b|\bif you('?re| are) (a )?human\b|\bhumans?,? (should )?(not|do not|don'?t|please leave)\b|\bleave this field (blank|empty)\b|\bdo not (fill|enter|type)( (in|out))? this field\b|\bhoneypot\b/i;
@@ -328,6 +345,7 @@ export function discoverFields(root: ParentNode, hooks: DiscoveryHooks = {}): Fo
     if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)) {
       if (el.querySelector('input')) return false;
     }
+    if (el instanceof HTMLSelectElement && !el.disabled && enhancedWidget(el)) return true;
     if (!isUsable(el)) return false;
     const textLike = el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && el.type !== 'file');
     return !(textLike && el.getAttribute('role') !== 'combobox' && hiddenFromPeople(el));
@@ -393,6 +411,7 @@ export function discoverFields(root: ParentNode, hooks: DiscoveryHooks = {}): Fo
             options: [...el.options].map((o) => text(o)),
             multiple: el.multiple,
             inputType: 'select',
+            anchor: enhancedWidget(el) ?? el,
           }),
       });
       continue;

@@ -9,6 +9,11 @@ export interface SiteAdapter extends DiscoveryHooks {
    * page has no application form (a job listing, a confirmation page).
    */
   formRoot: (doc: Document) => ParentNode | null;
+  /**
+   * Whether this frame is where the site's content lives, and so the one to
+   * answer the toolbar when no frame has a form. Normally the top frame.
+   */
+  contentFrame?: (win: Window, doc: Document) => boolean;
 }
 
 export function textOf(node: Element | null | undefined): string {

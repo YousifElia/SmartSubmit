@@ -4,6 +4,7 @@ import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import type { PageStatus, TabCommand } from '@/core/messages';
+import { adapterFor } from '@/core/autofill/adapters';
 import { ATS_HOST_PATTERNS, siteFromHost } from '@/core/sites';
 import { Controller } from './controller';
 import { Panel } from './Panel';
@@ -49,6 +50,41 @@ function start(ctx: ContentScriptContext): Instance {
 
   /** A frame too small to hold the panel (an embedded widget) is left alone. */
   const frameTooSmall = () => window.top !== window && (window.innerWidth < 340 || window.innerHeight < 260);
+  const adapter = adapterFor(site);
+  const contentFrame = () => adapter.contentFrame?.(window, document) ?? window.top === window;
+
+  /**
+   * Some sites (iCIMS) stretch the frame holding the form to the form's full
+   * height and let the outer page scroll. A panel fixed inside that frame
+   * would scroll away with it, so keep it within the part that is visible.
+   */
+  let followFrame: (() => void) | null = null;
+  function keepInView(host: HTMLElement): void {
+    let frame: Element | null = null;
+    let outer: Window | null = null;
+    try {
+      frame = window.frameElement;
+      outer = window.parent;
+      void outer.innerHeight;
+    } catch {
+      return; // A frame from another site: nothing to follow.
+    }
+    if (!frame || !outer || outer === window) return;
+    const place = () => {
+      const box = frame!.getBoundingClientRect();
+      const visibleTop = Math.max(0, -box.top);
+      const visibleHeight = Math.min(outer!.innerHeight, box.bottom) - Math.max(0, box.top);
+      host.style.setProperty('--ss-top', `${Math.round(visibleTop + 16)}px`);
+      host.style.setProperty('--ss-max-height', `${Math.max(240, Math.round(visibleHeight - 32))}px`);
+    };
+    place();
+    outer.addEventListener('scroll', place, { passive: true });
+    outer.addEventListener('resize', place);
+    followFrame = () => {
+      outer!.removeEventListener('scroll', place);
+      outer!.removeEventListener('resize', place);
+    };
+  }
 
   async function mount(): Promise<void> {
     if (ui || mounting) return;
@@ -61,7 +97,8 @@ function start(ctx: ContentScriptContext): Instance {
         append: 'last',
         css: panelCss,
         isolateEvents: true,
-        onMount(container) {
+        onMount(container, _shadow, host) {
+          if (window.top !== window) keepInView(host);
           const root = createRoot(container);
           root.render(<Panel controller={controller} onHide={() => hide()} />);
           return root;
@@ -77,6 +114,8 @@ function start(ctx: ContentScriptContext): Instance {
   }
 
   function unmount(): void {
+    followFrame?.();
+    followFrame = null;
     ui?.remove();
     ui = null;
   }
@@ -133,9 +172,10 @@ function start(ctx: ContentScriptContext): Instance {
     const command = message as Partial<TabCommand> | null;
     if (!command || command.__smartsubmit !== true || typeof command.command !== 'string') return undefined;
     // In a page with several frames, only the frame holding the form answers,
-    // falling back to the top frame so there is always exactly one reply.
+    // falling back to the frame holding the site's content (normally the top
+    // one) so there is always exactly one reply.
     const hasForm = controller.formRoot() !== null;
-    if (!hasForm && window.top !== window) return undefined;
+    if (!hasForm && !contentFrame()) return undefined;
     if (command.command === 'ping') {
       sendResponse(instance.status());
       return undefined;
