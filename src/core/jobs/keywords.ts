@@ -450,10 +450,30 @@ export function resumeText(doc: ResumeDoc | null, plain: string): string {
   return parts.filter(Boolean).join('\n');
 }
 
-function resumeHas(keyword: Keyword, text: string): boolean {
-  const skill = [...HARD, ...SOFT].find((s) => s.name === keyword.name);
+/** The dictionary entry a term is a spelling of ("Postgres" → PostgreSQL), if any. */
+function skillFor(term: string): Skill | undefined {
+  const byName = [...HARD, ...SOFT].find((s) => s.name.toLowerCase() === term.trim().toLowerCase());
+  if (byName) return byName;
+  // Wrapped in commas so list-only spellings ("Go", "R") are recognised too.
+  const probe = `, ${term.trim()},`;
+  return [...HARD, ...SOFT].find((s) =>
+    s.patterns.some((p) => {
+      p.lastIndex = 0;
+      const m = p.exec(probe);
+      return !!m && m[0].trim() === term.trim();
+    }),
+  );
+}
+
+/** Whether a text mentions a skill or term, under any of its usual spellings. */
+export function mentions(term: string, text: string): boolean {
+  const skill = skillFor(term);
   if (skill) return countMatches(skill.patterns, text) > 0;
-  return new RegExp(`${BEFORE}${escape(keyword.name)}${AFTER}`, 'i').test(text);
+  return new RegExp(`${BEFORE}${escape(term.trim())}${AFTER}`, 'i').test(text);
+}
+
+function resumeHas(keyword: Keyword, text: string): boolean {
+  return mentions(keyword.name, text);
 }
 
 /** Compare a resume against a job's keywords. */
