@@ -228,9 +228,16 @@ export function compatClient(baseUrl: string, apiKey: string, model: string): Ai
         ? [{ type: 'json_schema', json_schema: { name: 'reply', schema } }, { type: 'json_object', schema }, null]
         : [null];
       let response: Response | null = null;
-      for (const format of formats) {
+      for (const [i, format] of formats.entries()) {
         response = await send(format ? { ...body, response_format: format } : body, signal);
-        if (response.status !== 400 && response.status !== 422) break;
+        if (response.ok || i === formats.length - 1) break;
+        // A server that doesn't know this format says so with a 400 or 422,
+        // or, like llama-cpp-python, a 500 naming response_format.
+        const refused =
+          response.status === 400 ||
+          response.status === 422 ||
+          (response.status === 500 && /response_format/i.test(await response.clone().text().catch(() => '')));
+        if (!refused) break;
         await response.body?.cancel().catch(() => undefined);
       }
       if (!response!.ok) await fail(response!);

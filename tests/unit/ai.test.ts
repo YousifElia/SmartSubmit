@@ -170,11 +170,33 @@ describe('guardTailored', () => {
     expect(guardTailored(original, originalText, reworded).doc.experience[0]!.bullets[1]).toBe(reworded.experience[0]!.bullets[1]);
   });
 
-  it('drops a summary that invents a number', () => {
+  it('drops a summary sentence that invents a number', () => {
     const edited = structuredClone(original);
     edited.summary = 'Engineer with 7 years of experience.';
     const result = guardTailored(original, originalText, edited);
     expect(result.doc.summary).toBe('');
-    expect(result.removed[0]).toContain('Summary');
+    expect(result.removed[0]).toContain('From the summary');
+  });
+
+  it('catches a skill claimed in free text, as a small real model did', () => {
+    // A summary written by Qwen2.5 1.5B during testing: the resume has Docker and Linux, but not Kubernetes.
+    const edited = structuredClone(original);
+    edited.summary =
+      'A software developer with experience in Python and Java. Skilled in React and TypeScript, familiar with Docker and Kubernetes, and comfortable with Linux. Has built internal tools.';
+    edited.experience[0]!.bullets[2] = 'Added integration tests and Kubernetes deployments to the pipeline, catching 3 regressions before release.';
+    const result = guardTailored(original, originalText, edited, {
+      changes: [
+        { section: 'summary', before: '', after: edited.summary, reason: 'Matches the job' },
+        { section: 'skills', before: '', after: 'Python first', reason: 'Matches the job' },
+      ],
+      gaps: ['Nice to have: Experience with ROS2 or Go', 'Nice to have: Familiarity with Kubernetes and Docker'],
+    });
+    expect(result.doc.summary).toBe('A software developer with experience in Python and Java. Has built internal tools.');
+    expect(result.doc.experience[0]!.bullets[2]).toBe(original.experience[0]!.bullets[2]);
+    expect(result.removed[0]).toContain('Kubernetes');
+    // The model's description of the undone edit is dropped too.
+    expect(result.changes.map((c) => c.section)).toEqual(['skills']);
+    // "Kubernetes and Docker" is not a gap: the resume has Docker.
+    expect(result.gaps).toEqual(['Experience with ROS2 or Go']);
   });
 });

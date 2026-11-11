@@ -53,8 +53,11 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
   if (req.url === '/v1/chat/completions') {
     if (mode === 'no-schema' && body.response_format) return void res.writeHead(400).end('response_format not supported');
-    // Like llama-cpp-python: only its own json_object form is accepted.
-    if (mode === 'json-object' && (body.response_format as { type?: string } | undefined)?.type === 'json_schema') return void res.writeHead(422).end('unknown type');
+    // Like llama-cpp-python: only its own json_object form is accepted, and
+    // anything else is refused with a 500 that names the field.
+    if (mode === 'json-object' && (body.response_format as { type?: string } | undefined)?.type === 'json_schema') {
+      return void res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: { message: "('body', 'response_format', 'type'): Input should be 'text' or 'json_object'" } }));
+    }
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     for (let i = 0; i < reply.length; i += 40) res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: reply.slice(i, i + 40) } }] })}\n\n`);
     return void res.end('data: [DONE]\n\n');

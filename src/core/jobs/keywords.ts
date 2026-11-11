@@ -465,6 +465,11 @@ function skillFor(term: string): Skill | undefined {
   );
 }
 
+/** The known skills (tools, languages, qualifications) a text mentions, by their usual names. */
+export function skillsMentioned(text: string): string[] {
+  return HARD.filter((skill) => countMatches(skill.patterns, text) > 0).map((skill) => skill.name);
+}
+
 /** Whether a text mentions a skill or term, under any of its usual spellings. */
 export function mentions(term: string, text: string): boolean {
   const skill = skillFor(term);

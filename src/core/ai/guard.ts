@@ -7,12 +7,16 @@
  * original doesn't have, so what the user reviews is already honest.
  */
 import { dice, norm } from '../autofill/text';
-import { mentions } from '../jobs/keywords';
-import type { ResumeDoc } from '../types';
+import { mentions, skillsMentioned } from '../jobs/keywords';
+import type { ResumeDoc, TailorChange } from '../types';
 import { deepEqual } from '../util/equal';
 
 export interface GuardResult {
   doc: ResumeDoc;
+  /** The model's description of its changes, without any it had to undo. */
+  changes: TailorChange[];
+  /** The posting's requirements the resume doesn't show, as the model listed them, minus mistakes. */
+  gaps: string[];
   /** Taken out because the original resume doesn't have them. */
   removed: string[];
   /** Put back to the original's wording. */
@@ -58,7 +62,12 @@ function pair<T, O extends Matchable>(tailored: T[], originals: O[], score: (t: 
   });
 }
 
-export function guardTailored(original: ResumeDoc, originalText: string, tailored: ResumeDoc): GuardResult {
+export function guardTailored(
+  original: ResumeDoc,
+  originalText: string,
+  tailored: ResumeDoc,
+  reply: { changes: TailorChange[]; gaps: string[] } = { changes: [], gaps: [] },
+): GuardResult {
   const removed: string[] = [];
   const restored: string[] = [];
   const known = new Set(numbers(originalText));
@@ -68,11 +77,17 @@ export function guardTailored(original: ResumeDoc, originalText: string, tailore
   if (!deepEqual(doc.basics, original.basics)) restored.push('Contact details');
   doc.basics = structuredClone(original.basics);
 
-  /** Bullets with a number the original doesn't have go back to their original wording. */
+  /** What a piece of text claims that the original resume doesn't: numbers and skills. */
+  const inventedIn = (text: string): string[] => [
+    ...numbers(text).filter((n) => !known.has(n)),
+    ...skillsMentioned(text).filter((skill) => !mentions(skill, originalText)),
+  ];
+
+  /** Bullets that claim something new go back to their original wording. */
   const checkBullets = (bullets: string[], originals: string[], where: string): string[] => {
     const out: string[] = [];
     for (const bullet of bullets) {
-      const invented = numbers(bullet).filter((n) => !known.has(n));
+      const invented = inventedIn(bullet);
       if (invented.length === 0) {
         out.push(bullet);
         continue;
@@ -156,15 +171,27 @@ export function guardTailored(original: ResumeDoc, originalText: string, tailore
     return items.length > 0 ? [{ title: source?.title ?? extra.title, items }] : [];
   });
 
-  // ── Summary: no new numbers ──
-  const inventedInSummary = numbers(doc.summary).filter((n) => !known.has(n));
-  if (inventedInSummary.length > 0) {
-    removed.push(`Summary (it mentioned ${inventedInSummary.join(', ')}, which isn't in your resume)`);
-    doc.summary = original.summary;
+  // ── Summary: keep only the sentences that claim nothing new ──
+  if (doc.summary.trim()) {
+    const sentences = doc.summary.match(/[^.!?]+[.!?]*/g)?.map((x) => x.trim()).filter(Boolean) ?? [];
+    const kept: string[] = [];
+    for (const sentence of sentences) {
+      const invented = inventedIn(sentence);
+      if (invented.length === 0) kept.push(sentence);
+      else removed.push(`From the summary: “${sentence}” (${invented.join(', ')} isn't in your resume)`);
+    }
+    doc.summary = kept.join(' ');
   }
 
   // Keep only section names that still exist.
   const valid = new Set(['summary', 'education', 'experience', 'projects', 'skills', ...doc.extras.map((e) => `extra:${e.title}`)]);
   doc.order = doc.order.filter((key) => valid.has(key));
-  return { doc, removed, restored };
+
+  // Don't describe edits that were undone, nor call something a gap that the resume has.
+  const changes = reply.changes.filter((change) => inventedIn(change.after).length === 0);
+  const finalText = [originalText, doc.summary].join('\n');
+  const gaps = reply.gaps
+    .map((gap) => gap.replace(/^(nice[- ]to[- ]have|required|requirement|preferred|bonus)\s*:\s*/i, '').trim())
+    .filter((gap) => gap && !skillsMentioned(gap).some((skill) => mentions(skill, finalText)));
+  return { doc, changes, gaps, removed, restored };
 }

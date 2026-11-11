@@ -191,7 +191,7 @@ export function TailorPage({ jobId, navigate }: { jobId?: string; navigate: (rou
 
   const accept = (reply: TailorReply, via: Result['via']) => {
     if (!original) return;
-    const guard = guardTailored(original, originalText, reply.doc);
+    const guard = guardTailored(original, originalText, reply.doc, reply);
     setResult({ reply, guard, via });
     setEdited(null);
     setSavedId('');
@@ -224,8 +224,8 @@ export function TailorPage({ jobId, navigate }: { jobId?: string; navigate: (rou
       resumeId: resume.id,
       jobId: job.id,
       doc: current,
-      changes: result.reply.changes,
-      gaps: result.reply.gaps,
+      changes: result.guard.changes,
+      gaps: result.guard.gaps,
       via: result.via,
       createdAt: Date.now(),
     };
@@ -235,7 +235,7 @@ export function TailorPage({ jobId, navigate }: { jobId?: string; navigate: (rou
   };
 
   const gaps = (() => {
-    const fromModel = result?.reply.gaps ?? [];
+    const fromModel = result?.guard.gaps ?? [];
     const fromKeywords = after?.missing.filter((k) => k.kind === 'hard').map((k) => k.name) ?? [];
     const seen = new Set<string>();
     return [...fromKeywords, ...fromModel].filter((g) => {
@@ -411,7 +411,7 @@ export function TailorPage({ jobId, navigate }: { jobId?: string; navigate: (rou
             </Card>
 
             <Card title="What changed">
-              <Changes changes={result.reply.changes} />
+              <Changes changes={result.guard.changes} />
             </Card>
 
             <ResumeEditor doc={current} onChange={(doc) => setEdited(doc)} />
