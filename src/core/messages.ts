@@ -7,12 +7,16 @@
  * encryption key, or the OpenAI-compatible API key).
  */
 import { browser } from 'wxt/browser';
+import type { JobCapture } from './jobs/extract';
+import type { MatchReport } from './jobs/keywords';
 import type { SiteId } from './sites';
 import type { Mutation } from './storage/db';
 import type {
   Job,
+  JobStatus,
   Profile,
   ResumeDoc,
+  RichBlock,
   SavedAnswer,
   Settings,
   TailorChange,
@@ -115,8 +119,19 @@ export interface Protocol {
   'pdf.resume': [{ doc: ResumeDoc; fileName?: string }, FilePayload];
   'pdf.job': [{ jobId: string }, FilePayload | null];
 
-  'job.upsert': [{ job: Omit<Job, 'id' | 'status' | 'appliedAt' | 'resumeRef' | 'notes' | 'score'> }, Job];
-  'job.update': [{ id: string; patch: Partial<Job> }, Job | null];
+  /**
+   * Record a captured posting, or refresh the record of one seen before.
+   * `status` only ever moves a job forward (saved → started → applied).
+   */
+  'job.upsert': [{ job: JobCapture; status?: JobStatus; resume?: ResumeRef | null }, Job];
+  'job.update': [{ id: string; patch: JobPatch }, Job | null];
+  /** The tracked record for a posting, if there is one. Never creates one. */
+  'job.find': [{ key: string }, Job | null];
+  /**
+   * Keyword match between a resume and a job: a tracked one (its score is
+   * stored) or a posting captured on the current page and not yet tracked.
+   */
+  'job.match': [{ jobId?: string; blocks?: RichBlock[]; resume: ResumeRef }, MatchReport];
   'tailored.forJob': [{ jobId: string }, TailoredResume[]];
 
   'ai.status': [{ probe?: Settings['ai'] } | void, AiStatus];
@@ -138,6 +153,11 @@ export interface Protocol {
 }
 
 export type TailorStrength = 'light' | 'balanced' | 'strong';
+
+export type ResumeRef = NonNullable<Job['resumeRef']>;
+
+/** The parts of a tracked job the user can change. */
+export type JobPatch = Partial<Pick<Job, 'status' | 'appliedAt' | 'notes' | 'title' | 'company' | 'location' | 'resumeRef'>>;
 
 export type MessageType = keyof Protocol;
 type Req<K extends MessageType> = Protocol[K][0];

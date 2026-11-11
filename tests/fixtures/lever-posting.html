@@ -1,0 +1,39 @@
+<!doctype html>
+<!--
+  Replica of a Lever posting page (jobs.lever.co/<company>/<id>): the page
+  behind the application form, holding the description and schema.org data.
+  The content is invented.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Acme Robotics - Software Developer Intern</title>
+    <meta property="og:title" content="Acme Robotics - Software Developer Intern" />
+    <script type="application/ld+json">
+      {
+        "@context": "http://schema.org",
+        "@type": "JobPosting",
+        "title": "Software Developer Intern",
+        "hiringOrganization": { "@type": "Organization", "name": "Acme Robotics" },
+        "jobLocation": { "@type": "Place", "address": { "@type": "PostalAddress", "addressLocality": "Windsor, ON", "addressRegion": null, "addressCountry": null } },
+        "employmentType": "Internship",
+        "description": "<p><strong>About Acme</strong></p><p>Acme Robotics builds warehouse robots that move two million parcels a day.</p><p><strong>What you'll do</strong></p><ul><li>Build internal tools with React and TypeScript</li><li>Write Python services that stream robot telemetry</li></ul><p><strong>Requirements</strong></p><ul><li>Experience with Python and Java</li><li>Comfort with Docker, Kubernetes and Linux</li><li>Familiarity with PostgreSQL</li><li>Strong communication skills</li></ul><p><strong>Nice to have</strong></p><ul><li>Experience with ROS2 or Go</li></ul>"
+      }
+    </script>
+  </head>
+  <body>
+    <div class="section page-centered posting-header">
+      <div class="posting-headline">
+        <h2>Software Developer Intern</h2>
+        <div class="posting-categories"><div class="sort-by-time posting-category location">Windsor, ON</div></div>
+      </div>
+      <a class="postings-btn template-btn-submit" href="/acme/6ed76ce8-4156-4b60-b120-403538bd66cd/apply">Apply for this job</a>
+    </div>
+    <div class="section-wrapper page-full-width">
+      <div class="section page-centered" data-qa="job-description">
+        <div><strong>About Acme</strong></div>
+        <div>Acme Robotics builds warehouse robots that move two million parcels a day.</div>
+      </div>
+    </div>
+  </body>
+</html>

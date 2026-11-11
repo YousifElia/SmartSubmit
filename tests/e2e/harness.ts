@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { test as base, chromium, type BrowserContext, type Page } from '@playwright/test';
 import { defaultSettings } from '../../src/core/defaults';
-import type { Profile, Resume, SavedAnswer, Settings } from '../../src/core/types';
+import type { Profile, Resume, ResumeDoc, SavedAnswer, Settings } from '../../src/core/types';
 
 // Callbacks passed to `evaluate` run inside the extension, where `chrome` exists.
 declare const chrome: {
@@ -34,6 +34,12 @@ const FILE_FOR_HOST: Record<string, string> = {
   'jobs.ashbyhq.com': 'ashby.html',
   'careers.mapleleaf.example': 'generic.html',
 };
+
+/** The replica page for a URL: on Lever, the posting and its application form are separate pages. */
+function pageFor(url: URL): string | undefined {
+  if (url.hostname === 'jobs.lever.co' && !/\/apply\/?$/.test(url.pathname)) return 'lever-posting.html';
+  return FILE_FOR_HOST[url.hostname];
+}
 
 const TYPES: Record<string, string> = {
   html: 'text/html; charset=utf-8',
@@ -167,12 +173,17 @@ export class App {
     ) as Promise<T>;
   }
 
-  async seed(data: { profile?: Profile | null; answers?: SavedAnswer[]; resume?: boolean; settings?: (s: Settings) => Settings } = {}): Promise<void> {
+  /**
+   * Store test data. `resume: true` adds an uploaded PDF resume; passing a
+   * ResumeDoc also gives it parsed sections (needed for keyword matching).
+   */
+  async seed(data: { profile?: Profile | null; answers?: SavedAnswer[]; resume?: boolean | ResumeDoc; settings?: (s: Settings) => Settings } = {}): Promise<void> {
     const mutations: unknown[] = [];
     if (data.profile !== null) mutations.push({ op: 'put', collection: 'profile', id: 'me', data: data.profile ?? sampleProfile() });
     for (const answer of data.answers ?? []) mutations.push({ op: 'put', collection: 'answers', id: answer.id, data: answer });
     if (data.resume) {
       const { resume, fileBase64 } = sampleResume();
+      if (typeof data.resume === 'object') resume.doc = data.resume;
       mutations.push({ op: 'put', collection: 'resumes', id: resume.id, data: resume });
       mutations.push({ op: 'putFile', id: resume.file!.id, base64: fileBase64 });
     }
@@ -228,7 +239,7 @@ export const test = base.extend<{ app: App }>({
     await context.route('**/*', async (route) => {
       const url = new URL(route.request().url());
       if (url.protocol === 'chrome-extension:') return route.fallback();
-      const page = FILE_FOR_HOST[url.hostname];
+      const page = pageFor(url);
       if (!page) return route.abort();
       const isAsset = url.pathname.includes('/assets/');
       const file = isAsset ? join(FIXTURES, 'assets', basename(url.pathname)) : join(FIXTURES, page);

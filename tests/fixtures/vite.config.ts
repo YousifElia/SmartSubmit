@@ -18,6 +18,7 @@ export default defineConfig({
         greenhouse: resolve(here, 'greenhouse.html'),
         ashby: resolve(here, 'ashby.html'),
         lever: resolve(here, 'lever.html'),
+        leverPosting: resolve(here, 'lever-posting.html'),
         generic: resolve(here, 'generic.html'),
       },
     },

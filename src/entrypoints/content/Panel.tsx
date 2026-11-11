@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { Check, LoaderCircle, Minus, Wand2, X } from 'lucide-react';
+import { Check, FileDown, LoaderCircle, Minus, Send, Wand2, X } from 'lucide-react';
 import type { Candidate, FieldResult } from '@/core/autofill/engine';
 import { SITE_NAMES } from '@/core/sites';
 import type { Controller, PanelState } from './controller';
@@ -40,6 +40,69 @@ function ResultItem({ result, tone, onJump }: { result: FieldResult; tone: 'gree
         </span>
       </button>
     </li>
+  );
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  saved: 'Saved',
+  started: 'Started',
+  applied: 'Applied',
+  interviewing: 'Interviewing',
+  offer: 'Offer',
+  rejected: 'Rejected',
+  withdrawn: 'Withdrawn',
+};
+
+function JobCard({ state, controller }: { state: PanelState; controller: Controller }) {
+  const capture = state.capture;
+  if (!capture) return null;
+  const job = state.job;
+  const match = state.match;
+  const meta = [capture.company, capture.location].filter(Boolean).join(' · ');
+  const applied = job && ['applied', 'interviewing', 'offer'].includes(job.status);
+  const tone = !match ? '' : match.score >= 70 ? 'green' : match.score >= 45 ? 'amber' : 'red';
+  return (
+    <section className="job" aria-label="This job">
+      <p className="job-title">{capture.title || 'This job'}</p>
+      {meta ? <p className="job-meta">{meta}</p> : null}
+      {match && match.matched.length + match.missing.length > 0 ? (
+        <details className="match">
+          <summary>
+            <span className={`score ${tone}`}>{match.score}%</span>
+            <span>keyword match with this resume</span>
+          </summary>
+          {match.missing.length > 0 ? (
+            <p className="kw">
+              <b>Not in your resume:</b> {match.missing.map((k) => k.name).join(', ')}
+            </p>
+          ) : null}
+          {match.matched.length > 0 ? (
+            <p className="kw">
+              <b>Found:</b> {match.matched.map((k) => k.name).join(', ')}
+            </p>
+          ) : null}
+          <p className="kw muted">Only add a missing skill if you really have it.</p>
+        </details>
+      ) : capture.blocks.length === 0 ? (
+        <p className="job-meta">The description couldn’t be read from this page.</p>
+      ) : null}
+      <div className="job-actions">
+        <button type="button" className="secondary" disabled={state.jobBusy !== '' || capture.blocks.length === 0} onClick={() => void controller.savePostingPdf()}>
+          <FileDown size={13} /> Save posting as PDF
+        </button>
+        {applied ? (
+          <span className="tracked">
+            <Check size={13} /> {STATUS_LABELS[job.status]}
+            {job.appliedAt ? ` ${new Date(job.appliedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
+          </span>
+        ) : (
+          <button type="button" className="secondary" disabled={state.jobBusy !== ''} onClick={() => void controller.markApplied()}>
+            <Send size={13} /> Mark as applied
+          </button>
+        )}
+      </div>
+      {job && !applied ? <p className="job-meta">In your tracker as “{STATUS_LABELS[job.status]}”.</p> : null}
+    </section>
   );
 }
 
@@ -113,6 +176,8 @@ function Body({ state, controller }: { state: PanelState; controller: Controller
           to have it attached for you.
         </p>
       ) : null}
+
+      <JobCard state={state} controller={controller} />
 
       {working && state.progress && state.progress.total > 0 ? (
         <div>

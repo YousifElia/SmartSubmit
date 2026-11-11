@@ -12,10 +12,16 @@ import {
   type Summary,
 } from '@/core/autofill/engine';
 import { discoverFields, type FormField } from '@/core/autofill/fields';
-import { send, type Snapshot } from '@/core/messages';
+import { captureJob as captureFromPage, jobCountry, postingKey, type JobCapture } from '@/core/jobs/extract';
+import type { MatchReport } from '@/core/jobs/keywords';
+import { send, type ResumeRef, type Snapshot } from '@/core/messages';
 import type { SiteId } from '@/core/sites';
+import type { Job, JobStatus } from '@/core/types';
 import { base64ToBytes } from '@/core/util/base64';
 import { clearHighlights, highlight, reveal } from './highlight';
+
+/** Buttons that send an application. */
+const SUBMIT = /^(submit( my| your)?( application)?|send( my)?( application)?|apply( now)?|complete application|finish( application)?)$/i;
 
 export interface PanelState {
   site: SiteId;
@@ -32,6 +38,13 @@ export interface PanelState {
   error: string;
   /** Short confirmation shown after an action ("3 answers saved"). */
   notice: string;
+  /** The posting this application is for, once read from the page. */
+  capture: JobCapture | null;
+  /** Its record in the tracker, once tracked. */
+  job: Job | null;
+  match: MatchReport | null;
+  /** An action on the job in progress. */
+  jobBusy: '' | 'pdf' | 'track';
 }
 
 export class Controller {
@@ -41,6 +54,11 @@ export class Controller {
   private dismissed = new Set<string>();
   private adapter: SiteAdapter;
   private watch: ReturnType<typeof setInterval> | null = null;
+  private captured: { key: string; promise: Promise<JobCapture | null> } | null = null;
+  /** SmartSubmit filled this application, so pressing Submit is worth recording. */
+  private used = false;
+  private submitWatch: (() => void) | null = null;
+  private matchFor = '';
 
   constructor(site: SiteId, private doc: Document) {
     this.adapter = adapterFor(site);
@@ -57,6 +75,10 @@ export class Controller {
       progress: null,
       error: '',
       notice: '',
+      capture: null,
+      job: null,
+      match: null,
+      jobBusy: '',
     };
   }
 
@@ -96,11 +118,132 @@ export class Controller {
 
   setOpen(open: boolean): void {
     this.set({ open, notice: '' });
-    if (open) void this.loadSnapshot().catch((e) => this.fail(e));
+    if (open) {
+      void this.loadSnapshot()
+        .then(() => this.captureJob())
+        .then(() => this.refreshMatch())
+        .catch((e) => this.fail(e));
+    }
   }
 
   setResume(resumeId: string): void {
-    this.set({ resumeId });
+    this.set({ resumeId, match: null });
+    void this.refreshMatch();
+  }
+
+  private resumeRef(): ResumeRef | null {
+    return this.state.resumeId ? { kind: 'resume', id: this.state.resumeId } : null;
+  }
+
+  // ───────────────────────────── The job ─────────────────────────────
+
+  /** Read the posting behind this page, once per posting (single-page sites change it in place). */
+  captureJob(): Promise<JobCapture | null> {
+    const href = this.doc.location.href;
+    const key = postingKey(this.state.site, new URL(href));
+    if (this.captured?.key !== key) {
+      const promise = captureFromPage(this.doc, this.state.site, href, (url) => fetch(url, { credentials: 'omit' })).catch(() => null);
+      this.captured = { key, promise };
+      this.set({ capture: null, job: null, match: null });
+      void promise.then(async (capture) => {
+        if (this.captured?.key !== key || !capture) return;
+        this.set({ capture });
+        // Already tracked from an earlier visit? Show its record. Looking at a
+        // job never adds it to the tracker.
+        const job = await send('job.find', { key: capture.key }).catch(() => null);
+        if (job && this.captured?.key === key) this.set({ job });
+      });
+    }
+    return this.captured.promise;
+  }
+
+  /** Add the job to the tracker, or move it forward. */
+  async track(status?: JobStatus): Promise<Job | null> {
+    const capture = await this.captureJob();
+    if (!capture) return null;
+    const job = await send('job.upsert', { job: capture, status, resume: this.resumeRef() });
+    this.set({ job });
+    return job;
+  }
+
+  async refreshMatch(): Promise<void> {
+    const capture = this.state.capture ?? (await this.captureJob());
+    const resume = this.resumeRef();
+    if (!capture || !resume || capture.blocks.length === 0) {
+      this.set({ match: null });
+      return;
+    }
+    const tag = `${capture.key}|${resume.id}`;
+    this.matchFor = tag;
+    try {
+      const match = await send('job.match', this.state.job ? { jobId: this.state.job.id, resume } : { blocks: capture.blocks, resume });
+      if (this.matchFor === tag) this.set({ match });
+    } catch {
+      if (this.matchFor === tag) this.set({ match: null });
+    }
+  }
+
+  /** Save the posting as a PDF to the user's downloads. */
+  async savePostingPdf(): Promise<void> {
+    this.set({ jobBusy: 'pdf', error: '' });
+    try {
+      const job = this.state.job ?? (await this.track());
+      if (!job) throw new Error('No job posting was found on this page.');
+      const file = await send('pdf.job', { jobId: job.id });
+      if (!file) throw new Error('The PDF could not be made.');
+      const url = URL.createObjectURL(new Blob([base64ToBytes(file.base64)], { type: file.mime }));
+      const a = this.doc.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      a.style.display = 'none';
+      this.doc.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      this.set({ notice: `Saved ${file.name} to your downloads.` });
+    } catch (error) {
+      this.fail(error);
+    } finally {
+      this.set({ jobBusy: '' });
+    }
+  }
+
+  async markApplied(): Promise<void> {
+    this.set({ jobBusy: 'track' });
+    try {
+      await this.track('applied');
+      this.set({ notice: 'Marked as applied in your tracker.' });
+    } catch (error) {
+      this.fail(error);
+    } finally {
+      this.set({ jobBusy: '' });
+    }
+  }
+
+  /**
+   * Record the application as sent when the user presses the form's submit
+   * button. SmartSubmit only listens; it never presses anything itself.
+   */
+  private watchForSubmit(): void {
+    if (this.submitWatch) return;
+    const onSubmit = (event: Event) => {
+      if (!this.used || this.state.job?.status === 'applied') return;
+      const root = this.formRoot();
+      const target = event.target as Element | null;
+      if (!root || !target || !(root as Node).contains(target)) return;
+      if (event.type === 'click') {
+        const button = target.closest('button, input[type="submit"], [role="button"]');
+        const label = (button?.textContent || (button as HTMLInputElement | null)?.value || button?.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+        if (!button || !(SUBMIT.test(label) || (button as HTMLButtonElement).type === 'submit')) return;
+      }
+      void this.track('applied').catch(() => undefined);
+    };
+    this.doc.addEventListener('submit', onSubmit, true);
+    this.doc.addEventListener('click', onSubmit, true);
+    this.submitWatch = () => {
+      this.doc.removeEventListener('submit', onSubmit, true);
+      this.doc.removeEventListener('click', onSubmit, true);
+    };
   }
 
   private fail(error: unknown): void {
@@ -112,6 +255,9 @@ export class Controller {
     this.set({ phase: 'working', error: '', notice: '', progress: { done: 0, total: 0 } });
     try {
       const snapshot = await this.loadSnapshot();
+      // The job's location settles questions like "authorized to work in the
+      // country of this job". Don't hold up filling for a slow page, though.
+      const capture = await Promise.race([this.captureJob(), new Promise<null>((r) => setTimeout(() => r(null), 2500))]);
       const fields = this.scan();
       clearHighlights(this.doc);
       this.dismissed.clear();
@@ -126,7 +272,7 @@ export class Controller {
         fields,
         {
           snapshot,
-          jobCountry: '',
+          jobCountry: capture ? jobCountry(capture.location) : '',
           skipFiles: options.skipFiles,
           resumeFile: async () => {
             if (resume !== undefined) return resume;
@@ -154,6 +300,13 @@ export class Controller {
       this.set({ phase: 'done', results, summary: summarize(results), progress: null });
       this.refreshCandidates();
       this.startWatching();
+
+      // Log the application in the tracker and keep an eye out for the submit.
+      this.used = true;
+      this.watchForSubmit();
+      void this.track('started')
+        .then(() => this.refreshMatch())
+        .catch(() => undefined);
       return results;
     } catch (error) {
       this.fail(error);
@@ -180,6 +333,8 @@ export class Controller {
   dispose(): void {
     if (this.watch) clearInterval(this.watch);
     this.watch = null;
+    this.submitWatch?.();
+    this.submitWatch = null;
     clearHighlights(this.doc);
   }
 

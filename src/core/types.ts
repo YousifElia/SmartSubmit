@@ -307,7 +307,7 @@ export interface RichRun {
 
 export interface Job {
   id: string;
-  /** Stable identity across visits: `${site}:${company}:${postingId}`. */
+  /** Stable identity across visits: `${site}:${postingId}` (see `jobs/extract.ts`). */
   key: string;
   site: string;
   url: string;

@@ -41,10 +41,11 @@ test.describe('Lever', () => {
     // Choosing a location also fills Lever's hidden structured field.
     expect(String(data.selectedLocation)).toContain('Windsor, ON, Canada');
 
-    // "The country for which you are applying" names no country. The profile
-    // differs between Canada and the US, so the answer is entered but flagged.
+    // "The country for which you are applying" names no country, but the
+    // posting (read from the page behind the form) is in Windsor, ON: Canada.
     expect(data[card('1c719ca9-5069-4afe-9e82-39ca420e0edb', 0)]).toBe('Yes');
-    expect(report.groups['Check these']).toContain('Are you legally authorized to work in the country for which you are applying?');
+    expect(data[card('1c719ca9-5069-4afe-9e82-39ca420e0edb', 1)]).toBe('No');
+    expect(report.groups['Check these'] ?? []).not.toContain('Are you legally authorized to work in the country for which you are applying?');
 
     // The dropdown is matched on the option's wording, not its value.
     expect(data[card('a6197d84-549e-4a91-8bb0-6af972510013', 0)]).toBe('LinkedIn');

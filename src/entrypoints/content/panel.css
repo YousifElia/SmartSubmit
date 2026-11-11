@@ -321,6 +321,47 @@ button.item:hover { background: #f8fafc; }
 .foot button { color: var(--muted); font-size: 11.5px; font-weight: 550; }
 .foot button:hover { color: var(--ink); }
 
+/* ── This job ── */
+.job {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.job-title { margin: 0; font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
+.job-meta { margin: 2px 0 0; color: var(--muted); font-size: 11.5px; }
+.job-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; }
+.job-actions .secondary { display: inline-flex; align-items: center; gap: 5px; }
+.job-actions .secondary:disabled { opacity: 0.55; cursor: default; }
+.tracked { display: inline-flex; align-items: center; gap: 4px; color: var(--green); font-size: 12px; font-weight: 600; }
+.match { margin-top: 8px; }
+.match > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  list-style: none;
+  color: #475569;
+  font-size: 12px;
+}
+.match > summary::-webkit-details-marker { display: none; }
+.match > summary::after { content: "▸"; margin-left: auto; font-size: 10px; color: var(--muted); }
+.match[open] > summary::after { content: "▾"; }
+.score {
+  min-width: 38px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.score.green { background: var(--green-soft); color: var(--green); }
+.score.amber { background: var(--amber-soft); color: var(--amber); }
+.score.red { background: #fef2f2; color: var(--red); }
+.kw { margin: 6px 0 0; font-size: 11.5px; color: #334155; overflow-wrap: anywhere; }
+.kw b { font-weight: 650; }
+.kw.muted { color: var(--muted); font-style: italic; }
+
 .spin { animation: ss-spin 800ms linear infinite; }
 @keyframes ss-spin { to { transform: rotate(360deg); } }
 
