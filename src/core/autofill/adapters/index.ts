@@ -6,6 +6,7 @@ import { icims } from './icims';
 import { lever } from './lever';
 import { smartrecruiters } from './smartrecruiters';
 import type { SiteAdapter } from './types';
+import { workable } from './workable';
 import { workday } from './workday';
 
 const ADAPTERS: Partial<Record<SiteId, SiteAdapter>> = {
@@ -15,6 +16,7 @@ const ADAPTERS: Partial<Record<SiteId, SiteAdapter>> = {
   workday,
   icims,
   smartrecruiters,
+  workable,
   generic,
 };
 

@@ -30,6 +30,7 @@ export const PAGES = {
   icims: 'https://careers-northwind.icims.com/jobs/1234/software-developer-co-op/candidate',
   icimsLogin: 'https://careers-northwind.icims.com/jobs/1234/software-developer-co-op/login',
   smartrecruiters: 'https://jobs.smartrecruiters.com/oneclick-ui/company/AcmeGames/publication/0b9e3c1a-5f7d-4e2b-9c8a-1d2e3f4a5b6c?dcr_ci=AcmeGames',
+  workable: 'https://apply.workable.com/northwind-freight/j/B4F2A19C7D/apply/',
 } as const;
 
 const FILE_FOR_HOST: Record<string, string> = {
@@ -53,6 +54,8 @@ function pageFor(url: URL): string | undefined {
   if (url.hostname === 'jobs.smartrecruiters.com' && url.pathname.startsWith('/oneclick-ui/')) return 'smartrecruiters.html';
   // SmartRecruiters' public posting API, open to any site.
   if (url.hostname === 'api.smartrecruiters.com') return '../smartrecruiters-posting.json';
+  // Workable: the job data its pages load, and the application form.
+  if (url.hostname === 'apply.workable.com') return url.pathname.startsWith('/api/') ? '../workable-job.json' : 'workable.html';
   // Workday's public job data, which its pages load from the same host.
   if (url.hostname.endsWith('.myworkdayjobs.com') && url.pathname.startsWith('/wday/cxs/')) return '../workday-job.json';
   return FILE_FOR_HOST[url.hostname];

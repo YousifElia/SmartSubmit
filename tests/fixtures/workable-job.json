@@ -1,0 +1,23 @@
+{
+  "shortcode": "B4F2A19C7D",
+  "title": "Junior Backend Developer",
+  "remote": false,
+  "workplace": "hybrid",
+  "location": {
+    "country": "Canada",
+    "countryCode": "CA",
+    "city": "Vancouver",
+    "region": "British Columbia"
+  },
+  "locations": [
+    {
+      "country": "Canada",
+      "countryCode": "CA",
+      "city": "Vancouver",
+      "region": "British Columbia"
+    }
+  ],
+  "description": "<p>Northwind Freight moves goods across Canada, and our backend keeps every truck on schedule.</p>",
+  "requirements": "<ul><li>Node.js or Python</li><li>Comfort with SQL and PostgreSQL</li></ul>",
+  "benefits": "<ul><li>Health and dental from day one</li></ul>"
+}
