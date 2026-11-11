@@ -87,14 +87,34 @@ function explain(error: { message?: string; status?: number; code?: string } | n
   if (error?.code === 'invalid_credentials' || /invalid login credentials/i.test(message)) {
     return new SyncError('auth', 'That email and password don’t match an account.');
   }
+  if (/invalid api key|no api key/i.test(message)) {
+    return new SyncError('config', 'The sync server rejected the project key. Check it in Sync settings.');
+  }
+  if (error?.code === 'PGRST301' || error?.status === 401 || /jwt expired|invalid jwt/i.test(message)) {
+    return new SyncError('auth', 'You are signed out of sync. Sign in again.');
+  }
+  if (error?.code === 'otp_expired' || /token has expired or is invalid/i.test(message)) {
+    return new SyncError('auth', 'That code is wrong or has expired. Check it, or send a new one.');
+  }
+  if (error?.code === 'same_password') return new SyncError('auth', 'Choose a password different from the current one.');
+  if (error?.code === 'weak_password') return new SyncError('auth', 'The sync server says that password is too weak. Try a longer one.');
+  if (error?.code === 'reauthentication_needed') {
+    return new SyncError('auth', 'For security, sign out and back in, then change the password.');
+  }
+  if (error?.code === 'signup_disabled' || /signups not allowed/i.test(message)) {
+    return new SyncError('config', 'This sync server doesn’t accept new accounts.');
+  }
+  if (error?.code === 'email_address_not_authorized' || /email address not authorized/i.test(message)) {
+    return new SyncError('config', 'This sync server can’t send email to that address yet. Its owner needs to set up email sending; see the self-hosting guide.');
+  }
+  if (error?.code === 'over_email_send_rate_limit' || /email rate limit/i.test(message)) {
+    return new SyncError('rate', 'Too many emails for now. Wait a minute, then try again.');
+  }
   if (error?.status === 429 || /rate limit/i.test(message)) {
     return new SyncError('rate', 'Too many attempts for now. Wait a few minutes and try again.');
   }
   if (error?.code === 'user_already_exists' || /already registered/i.test(message)) {
     return new SyncError('auth', 'An account with that email already exists. Sign in instead.');
-  }
-  if (/invalid api key|no api key/i.test(message)) {
-    return new SyncError('config', 'The sync server rejected the project key. Check it in Sync settings.');
   }
   return new SyncError('server', message);
 }
@@ -107,7 +127,8 @@ export function supabaseBackend(url: string, key: string, secrets: SecretStore):
   let client: SupabaseClient;
   try {
     client = createClient(url, key, {
-      auth: { storage: authStorage(secrets), storageKey: 'smartsubmit', persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      // One session per server, so switching servers never reuses a session.
+      auth: { storage: authStorage(secrets), storageKey: `smartsubmit:${new URL(url).host}`, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
     });
   } catch {
     throw new SyncError('config', 'That sync server address doesn’t look right. It should look like https://your-project.supabase.co.');
@@ -185,11 +206,13 @@ export function supabaseBackend(url: string, key: string, secrets: SecretStore):
 
     async push(items) {
       if (items.length === 0) return [];
+      await userId();
       const { data, error } = await client.rpc('push_records', { items });
       if (error) throw explain(error, 'Couldn’t upload changes.');
       return (data as { rid: string; accepted: boolean }[]).map((r) => ({ rid: r.rid, accepted: r.accepted }));
     },
     async pull(afterSeq, limit) {
+      await userId();
       const { data, error } = await client
         .from('records')
         .select('rid, ciphertext, deleted, updated_at, seq')
@@ -201,6 +224,7 @@ export function supabaseBackend(url: string, key: string, secrets: SecretStore):
     },
     async fetch(rids) {
       if (rids.length === 0) return [];
+      await userId();
       const { data, error } = await client.from('records').select('rid, ciphertext, deleted, updated_at, seq').in('rid', rids);
       if (error) throw explain(error, 'Couldn’t download changes.');
       return rows(data);

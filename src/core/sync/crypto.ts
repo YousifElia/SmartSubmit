@@ -69,6 +69,15 @@ export function newDataKey(): Bytes {
 
 const DEK_AAD = utf8('smartsubmit/data-key/v1');
 
+/**
+ * A short public fingerprint of a data key, kept with the account so a browser
+ * can tell when the key was replaced elsewhere (a password reset).
+ */
+export async function keyIdOf(dataKey: Uint8Array): Promise<string> {
+  const digest = new Uint8Array(await subtle().digest('SHA-256', concat(utf8('smartsubmit/key-id/v1/'), dataKey)));
+  return base64url(digest.slice(0, 12));
+}
+
 /** Encrypt the data key with the wrapping key. */
 export async function wrapDataKey(dataKey: Uint8Array, wrapKey: CryptoKey): Promise<string> {
   const iv = random(12);

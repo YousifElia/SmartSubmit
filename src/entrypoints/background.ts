@@ -6,6 +6,7 @@ import { dataHandlers } from '@/background/data';
 import { fileHandlers } from '@/background/files';
 import { jobHandlers } from '@/background/jobs';
 import { pageHandlers } from '@/background/page';
+import { startSyncSchedule, syncHandlers } from '@/background/sync';
 import { openDashboard } from '@/background/tabs';
 
 export default defineBackground({
@@ -29,7 +30,9 @@ export default defineBackground({
       ...fileHandlers,
       ...jobHandlers,
       ...aiHandlers,
+      ...syncHandlers,
     };
     serve(handlers);
+    startSyncSchedule();
   },
 });

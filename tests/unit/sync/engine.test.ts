@@ -234,6 +234,8 @@ describe('sync engine', () => {
       apply: async (mutations) => {
         if (!typed && mutations.some((m) => m.op === 'put' && m.id === 'a1')) {
           typed = true;
+          // A moment after A's edit: two edits in the same millisecond go to whichever reached the server first.
+          await new Promise((r) => setTimeout(r, 5));
           await db.put('answers', 'a1', answer('a1', 'typed on B'));
         }
         await localStore.apply(mutations);

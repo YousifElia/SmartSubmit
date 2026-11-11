@@ -76,20 +76,22 @@ export interface DraftRequest {
 }
 
 export interface SyncStatus {
+  /** A sync server is set, in settings or built in. */
   configured: boolean;
-  signedIn: boolean;
+  state: 'signedOut' | 'confirming' | 'ready';
+  /** The account's email, or the one last used on this browser. */
   email: string;
-  /** Needs the password again on this device to unlock the encryption key. */
-  locked: boolean;
   lastSyncAt: number | null;
   syncing: boolean;
+  /** Local changes not sent yet. */
   pending: number;
+  /** Why the last sync failed, or why sync stopped. */
   error: string;
+  /** This browser still holds the account's key, so a password reset here keeps the cloud copy. */
+  holdsKey: boolean;
 }
 
-export type AuthResult =
-  | { ok: true; needsConfirmation?: boolean }
-  | { ok: false; error: string };
+export type AuthResult = { ok: true; needsConfirmation?: boolean } | { ok: false; error: string };
 
 /** Every message the background understands: request payload → response. */
 export interface Protocol {
@@ -142,12 +144,14 @@ export interface Protocol {
   'sync.now': [void, SyncStatus];
   'auth.signUp': [{ email: string; password: string }, AuthResult];
   'auth.signIn': [{ email: string; password: string }, AuthResult];
-  'auth.confirm': [{ email: string; code: string; password: string }, AuthResult];
-  'auth.signOut': [void, void];
+  /** Finish a sign-up with the emailed code, or with an empty code after following the emailed link. */
+  'auth.confirm': [{ code: string }, AuthResult];
+  'auth.cancelSignUp': [void, AuthResult];
+  'auth.signOut': [void, AuthResult];
   'auth.changePassword': [{ current: string; next: string }, AuthResult];
   'auth.requestReset': [{ email: string }, AuthResult];
   'auth.completeReset': [{ email: string; code: string; password: string }, AuthResult];
-  'auth.deleteAccount': [void, AuthResult];
+  'auth.deleteAccount': [{ password: string }, AuthResult];
 }
 
 export type TailorStrength = 'light' | 'balanced' | 'strong';
@@ -188,6 +192,8 @@ export async function send<K extends MessageType>(
  */
 const PAGE_ONLY: ReadonlySet<MessageType> = new Set<MessageType>([
   'db.mutate',
+  'sync.status',
+  'auth.cancelSignUp',
   'auth.signUp',
   'auth.signIn',
   'auth.confirm',

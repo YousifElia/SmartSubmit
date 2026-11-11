@@ -1,25 +1,11 @@
-import { browser } from 'wxt/browser';
 import { draftAnswerPrompt, handoffText, resumeAsText } from '@/core/ai/prompts';
 import { AiError, clientFor } from '@/core/ai/providers';
 import { runDraft } from '@/core/ai/run';
 import type { DraftRequest, Handlers } from '@/core/messages';
 import * as db from '@/core/storage/db';
+import { keepAwake } from './keepAwake';
 
 let running: AbortController | null = null;
-
-/**
- * Keep the background script awake while a model is writing: the browser
- * stops an idle background script after about 30 seconds, and a slow local
- * model can take longer than that.
- */
-async function keepAwake<T>(work: () => Promise<T>): Promise<T> {
-  const timer = setInterval(() => void browser.runtime.getPlatformInfo(), 20_000);
-  try {
-    return await work();
-  } finally {
-    clearInterval(timer);
-  }
-}
 
 async function resumeTextFor(request: DraftRequest): Promise<string> {
   const ref = request.resume;
