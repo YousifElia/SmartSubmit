@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
 import { serve, type Handlers } from '@/core/messages';
+import { aiHandlers } from '@/background/ai';
 import { dataHandlers } from '@/background/data';
 import { fileHandlers } from '@/background/files';
 import { jobHandlers } from '@/background/jobs';
@@ -27,6 +28,7 @@ export default defineBackground({
       ...pageHandlers,
       ...fileHandlers,
       ...jobHandlers,
+      ...aiHandlers,
     };
     serve(handlers);
   },

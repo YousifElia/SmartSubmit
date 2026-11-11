@@ -7,6 +7,7 @@
  * encryption key, or the OpenAI-compatible API key).
  */
 import { browser } from 'wxt/browser';
+import type { JobForPrompt } from './ai/prompts';
 import type { JobCapture } from './jobs/extract';
 import type { MatchReport } from './jobs/keywords';
 import type { SiteId } from './sites';
@@ -19,7 +20,6 @@ import type {
   RichBlock,
   SavedAnswer,
   Settings,
-  TailorChange,
   TailoredResume,
 } from './types';
 
@@ -67,18 +67,12 @@ export interface FilePayload {
   base64: string;
 }
 
-export interface AiStatus {
-  provider: Settings['ai']['provider'];
-  ok: boolean;
-  model: string;
-  models: string[];
-  error?: string;
-}
-
-export interface TailorResult {
-  doc: ResumeDoc;
-  changes: TailorChange[];
-  gaps: string[];
+export interface DraftRequest {
+  question: string;
+  job: JobForPrompt | null;
+  /** The resume to draw on; the default one when null. */
+  resume: ResumeRef | null;
+  maxLength: number | null;
 }
 
 export interface SyncStatus {
@@ -134,10 +128,14 @@ export interface Protocol {
   'job.match': [{ jobId?: string; blocks?: RichBlock[]; resume: ResumeRef }, MatchReport];
   'tailored.forJob': [{ jobId: string }, TailoredResume[]];
 
-  'ai.status': [{ probe?: Settings['ai'] } | void, AiStatus];
-  'ai.tailor': [{ resumeId: string; jobId: string; strength: TailorStrength }, TailorResult];
-  'ai.parseResume': [{ text: string }, ResumeDoc];
-  'ai.draftAnswer': [{ question: string; jobId?: string; resumeId?: string; maxLength?: number }, string];
+  /**
+   * Draft an answer to an application question with the local model. Tailoring
+   * and resume reading run in the dashboard instead, where a long generation
+   * is not cut short by the background script's lifetime.
+   */
+  'ai.draftAnswer': [DraftRequest, string];
+  /** The same request as one message to paste into claude.ai. */
+  'ai.draftPrompt': [DraftRequest, string];
   'ai.cancel': [void, void];
 
   'sync.status': [void, SyncStatus];
