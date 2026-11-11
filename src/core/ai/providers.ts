@@ -118,7 +118,17 @@ export function ollamaClient(baseUrl: string, model: string): AiClient {
       const response = await request(`${base}/api/tags`, { signal }, label);
       await check(response);
       const data = (await response.json()) as { models?: { name?: string }[] };
-      return (data.models ?? []).map((m) => m.name ?? '').filter(Boolean).sort();
+      const models = (data.models ?? []).map((m) => m.name ?? '').filter(Boolean).sort();
+      // Browsers only send the extension's origin on requests like the ones
+      // that generate text, so the model list can load while generating would
+      // be refused. A cheap request of that kind finds out now.
+      const probe = await request(
+        `${base}/api/show`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model || models[0] || 'smartsubmit-check' }), signal },
+        label,
+      );
+      if (probe.status === 403) throw new AiError('origin', OLLAMA_ORIGINS_HELP);
+      return models;
     },
     async chat({ prompt, schema, signal, onProgress }) {
       if (!model) throw new AiError('model', 'Choose an Ollama model in SmartSubmit’s AI settings first.');

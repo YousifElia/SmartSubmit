@@ -16,7 +16,9 @@ import { captureJob as captureFromPage, jobCountry, postingKey, type JobCapture 
 import type { MatchReport } from '@/core/jobs/keywords';
 import { send, type ResumeRef, type Snapshot } from '@/core/messages';
 import type { SiteId } from '@/core/sites';
-import type { Job, JobStatus } from '@/core/types';
+import type { Job, JobStatus, TailoredResume } from '@/core/types';
+import { fillText } from '@/core/autofill/fill';
+import { CLAUDE_URL } from '@/core/ai/prompts';
 import { base64ToBytes } from '@/core/util/base64';
 import { clearHighlights, highlight, reveal } from './highlight';
 
@@ -34,6 +36,12 @@ export interface PanelState {
   candidates: Candidate[];
   /** Which resume to attach: a resume id, or '' for none. */
   resumeId: string;
+  /** Set when the choice is a version tailored for this job. */
+  tailoredId: string;
+  /** Versions of the user's resumes tailored for this job. */
+  tailored: TailoredResume[];
+  /** AI drafts for open-ended questions, by field. */
+  drafts: Record<string, Draft>;
   progress: { done: number; total: number } | null;
   error: string;
   /** Short confirmation shown after an action ("3 answers saved"). */
@@ -46,6 +54,12 @@ export interface PanelState {
   /** An action on the job in progress. */
   jobBusy: '' | 'pdf' | 'track';
 }
+
+export type Draft =
+  | { state: 'working' }
+  | { state: 'ready'; text: string }
+  | { state: 'handoff'; text: string }
+  | { state: 'error'; error: string };
 
 export class Controller {
   private state: PanelState;
@@ -72,6 +86,9 @@ export class Controller {
       summary: null,
       candidates: [],
       resumeId: '',
+      tailoredId: '',
+      tailored: [],
+      drafts: {},
       progress: null,
       error: '',
       notice: '',
@@ -126,13 +143,114 @@ export class Controller {
     }
   }
 
-  setResume(resumeId: string): void {
-    this.set({ resumeId, match: null });
+  /** Choose what to attach: `resume:<id>`, `tailored:<id>` or '' for nothing. */
+  setResume(choice: string): void {
+    const [kind, id = ''] = choice.split(':');
+    if (kind === 'tailored') this.set({ tailoredId: id, match: null });
+    else this.set({ resumeId: kind === 'resume' ? id : '', tailoredId: '', match: null });
     void this.refreshMatch();
   }
 
+  /** The current choice in the form `setResume` takes. */
+  resumeChoice(): string {
+    if (this.state.tailoredId) return `tailored:${this.state.tailoredId}`;
+    return this.state.resumeId ? `resume:${this.state.resumeId}` : '';
+  }
+
   private resumeRef(): ResumeRef | null {
+    if (this.state.tailoredId) return { kind: 'tailored', id: this.state.tailoredId };
     return this.state.resumeId ? { kind: 'resume', id: this.state.resumeId } : null;
+  }
+
+  /** Load the versions tailored for this job, and attach the one chosen for it. */
+  private async loadTailored(job: Job): Promise<void> {
+    const tailored = await send('tailored.forJob', { jobId: job.id }).catch(() => [] as TailoredResume[]);
+    tailored.sort((a, b) => b.createdAt - a.createdAt);
+    const chosen = job.resumeRef?.kind === 'tailored' && tailored.some((t) => t.id === job.resumeRef!.id) ? job.resumeRef.id : '';
+    this.set({ tailored, ...(chosen && !this.state.tailoredId ? { tailoredId: chosen } : {}) });
+  }
+
+  /** Open the tailoring page for this job, adding it to the tracker if needed. */
+  async openTailor(): Promise<void> {
+    try {
+      const job = this.state.job ?? (await this.track());
+      if (!job) throw new Error('No job posting was found on this page.');
+      this.openDashboard(`/tailor/${job.id}`);
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+
+  // ───────────────────────────── Drafts ─────────────────────────────
+
+  private setDraft(uid: string, draft: Draft | null): void {
+    const drafts = { ...this.state.drafts };
+    if (draft) drafts[uid] = draft;
+    else delete drafts[uid];
+    this.set({ drafts });
+  }
+
+  /** Write a first draft for an open-ended question. Nothing goes into the form until the user inserts it. */
+  async draft(uid: string): Promise<void> {
+    const field = this.fields.find((f) => f.uid === uid);
+    if (!field) return;
+    const capture = this.state.capture;
+    const request = {
+      question: field.label,
+      job: capture ? { title: capture.title, company: capture.company, location: capture.location, description: capture.description } : null,
+      resume: this.resumeRef(),
+      maxLength: field.maxLength,
+    };
+    if (this.state.snapshot?.settings.aiReady) {
+      this.setDraft(uid, { state: 'working' });
+      try {
+        const text = await send('ai.draftAnswer', request);
+        this.setDraft(uid, { state: 'ready', text });
+      } catch (error) {
+        this.setDraft(uid, { state: 'error', error: error instanceof Error ? error.message : 'The draft could not be written.' });
+      }
+      return;
+    }
+    // No local model: prepare the request for claude.ai instead.
+    try {
+      const text = await send('ai.draftPrompt', request);
+      await copyToClipboard(text, this.doc);
+      await send('tab.open', { url: CLAUDE_URL });
+      this.setDraft(uid, { state: 'handoff', text: '' });
+    } catch (error) {
+      this.setDraft(uid, { state: 'error', error: error instanceof Error ? error.message : 'The request could not be prepared.' });
+    }
+  }
+
+  updateDraft(uid: string, text: string): void {
+    const draft = this.state.drafts[uid];
+    if (draft && (draft.state === 'ready' || draft.state === 'handoff')) this.setDraft(uid, { ...draft, text });
+  }
+
+  dismissDraft(uid: string): void {
+    this.setDraft(uid, null);
+  }
+
+  /** Put a draft the user approved into its field. */
+  insertDraft(uid: string): void {
+    const field = this.fields.find((f) => f.uid === uid);
+    const draft = this.state.drafts[uid];
+    if (!field || !draft || (draft.state !== 'ready' && draft.state !== 'handoff') || !draft.text.trim()) return;
+    if (field.kind !== 'text') return;
+    fillText(field.el as HTMLInputElement | HTMLTextAreaElement, draft.text.trim());
+    if (this.state.snapshot?.settings.autofill.highlight) highlight(field, 'review');
+    const results = this.state.results.map((r) => (r.uid === uid ? { ...r, status: 'review' as const, value: draft.text.trim(), note: 'Drafted with AI. Read it over and make it yours.' } : r));
+    this.setDraft(uid, null);
+    this.set({ results, summary: summarize(results) });
+    this.refreshCandidates();
+  }
+
+  /** Whether a question is open-ended enough for a drafted answer. */
+  canDraft(uid: string): boolean {
+    const field = this.fields.find((f) => f.uid === uid);
+    if (!field || field.kind !== 'text' || !field.label) return false;
+    if (field.inputType === 'textarea') return true;
+    return field.label.length >= 25 && /\?$|\b(why|describe|tell us|explain|what|how)\b/i.test(field.label);
   }
 
   // ───────────────────────────── The job ─────────────────────────────
@@ -151,7 +269,10 @@ export class Controller {
         // Already tracked from an earlier visit? Show its record. Looking at a
         // job never adds it to the tracker.
         const job = await send('job.find', { key: capture.key }).catch(() => null);
-        if (job && this.captured?.key === key) this.set({ job });
+        if (job && this.captured?.key === key) {
+          this.set({ job });
+          await this.loadTailored(job);
+        }
       });
     }
     return this.captured.promise;
@@ -163,6 +284,7 @@ export class Controller {
     if (!capture) return null;
     const job = await send('job.upsert', { job: capture, status, resume: this.resumeRef() });
     this.set({ job });
+    if (this.state.tailored.length === 0) await this.loadTailored(job);
     return job;
   }
 
@@ -266,7 +388,8 @@ export class Controller {
       const view = this.doc.defaultView;
       const scroll = view ? { x: view.scrollX, y: view.scrollY } : null;
 
-      const resumeId = this.state.resumeId;
+      const ref = this.resumeRef();
+      const company = capture?.company;
       let resume: File | null | undefined;
       const results = await autofill(
         fields,
@@ -276,8 +399,8 @@ export class Controller {
           skipFiles: options.skipFiles,
           resumeFile: async () => {
             if (resume !== undefined) return resume;
-            if (!resumeId) return (resume = null);
-            const payload = await send('resume.file', { kind: 'resume', id: resumeId });
+            if (!ref) return (resume = null);
+            const payload = await send('resume.file', { kind: ref.kind, id: ref.id, company });
             resume = payload ? new File([base64ToBytes(payload.base64)], payload.name, { type: payload.mime }) : null;
             return resume;
           },
@@ -384,6 +507,21 @@ export class Controller {
 
   openDashboard(route = '/'): void {
     void send('dashboard.open', { route }).catch(() => undefined);
+  }
+}
+
+async function copyToClipboard(text: string, doc: Document): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const area = doc.createElement('textarea');
+    area.value = text;
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    doc.body.appendChild(area);
+    area.select();
+    doc.execCommand('copy');
+    area.remove();
   }
 }
 

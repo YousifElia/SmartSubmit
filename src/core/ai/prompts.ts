@@ -6,6 +6,9 @@
 import type { TailorStrength } from '../messages';
 import type { ResumeDoc } from '../types';
 
+/** Where the claude.ai handoff starts a new chat. Only ever opened for the user, never automated. */
+export const CLAUDE_URL = 'https://claude.ai/new';
+
 export interface Prompt {
   system: string;
   user: string;

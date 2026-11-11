@@ -29,6 +29,10 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   const body = await readBody(req);
   seen.push({ path: req.url ?? '', origin: req.headers.origin, body });
   if (mode === 'forbidden') return void res.writeHead(403).end();
+  if (req.url === '/api/show') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return void res.end('{}');
+  }
   if (req.url === '/api/tags') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return void res.end(JSON.stringify({ models: [{ name: 'qwen2.5:7b' }, { name: 'llama3.2:3b' }] }));

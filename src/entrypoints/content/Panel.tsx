@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
-import { Check, FileDown, LoaderCircle, Minus, Send, Wand2, X } from 'lucide-react';
+import { Check, FileDown, LoaderCircle, Minus, Send, Sparkles, Wand2, X } from 'lucide-react';
 import type { Candidate, FieldResult } from '@/core/autofill/engine';
 import { SITE_NAMES } from '@/core/sites';
-import type { Controller, PanelState } from './controller';
+import type { Controller, Draft, PanelState } from './controller';
 
 function Mark({ size = 26 }: { size?: number }) {
   return (
@@ -23,6 +23,48 @@ function Mark({ size = 26 }: { size?: number }) {
 
 function answerText(answer: string | string[]): string {
   return Array.isArray(answer) ? answer.join(', ') : answer;
+}
+
+function DraftBox({ uid, draft, controller }: { uid: string; draft: Draft; controller: Controller }) {
+  if (draft.state === 'working') {
+    return (
+      <p className="draft hint">
+        <LoaderCircle size={13} className="spin" /> Writing a draft…
+      </p>
+    );
+  }
+  if (draft.state === 'error') {
+    return (
+      <div className="draft">
+        <p className="error">{draft.error}</p>
+        <button type="button" className="link" onClick={() => controller.dismissDraft(uid)}>
+          Dismiss
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="draft">
+      {draft.state === 'handoff' ? (
+        <p className="hint">The request is on your clipboard and claude.ai is open in a new tab. Paste it there, send it, then paste Claude’s answer here.</p>
+      ) : null}
+      <textarea
+        aria-label="Draft answer"
+        rows={5}
+        value={draft.text}
+        placeholder={draft.state === 'handoff' ? 'Paste Claude’s answer here' : ''}
+        onChange={(e) => controller.updateDraft(uid, e.target.value)}
+      />
+      <div className="row">
+        <button type="button" className="secondary" disabled={!draft.text.trim()} onClick={() => controller.insertDraft(uid)}>
+          Insert into the form
+        </button>
+        <button type="button" className="link" onClick={() => controller.dismissDraft(uid)}>
+          Discard
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function ResultItem({ result, tone, onJump }: { result: FieldResult; tone: 'green' | 'amber' | 'sky'; onJump: () => void }) {
@@ -87,6 +129,11 @@ function JobCard({ state, controller }: { state: PanelState; controller: Control
         <p className="job-meta">The description couldn’t be read from this page.</p>
       ) : null}
       <div className="job-actions">
+        {capture.blocks.length > 0 ? (
+          <button type="button" className="secondary" onClick={() => void controller.openTailor()}>
+            <Sparkles size={13} /> Tailor resume
+          </button>
+        ) : null}
         <button type="button" className="secondary" disabled={state.jobBusy !== '' || capture.blocks.length === 0} onClick={() => void controller.savePostingPdf()}>
           <FileDown size={13} /> Save posting as PDF
         </button>
@@ -157,13 +204,25 @@ function Body({ state, controller }: { state: PanelState; controller: Controller
       {snapshot && snapshot.resumes.length > 0 ? (
         <div className="row">
           <label htmlFor="ss-resume">Attach</label>
-          <select id="ss-resume" value={state.resumeId} onChange={(e) => controller.setResume(e.target.value)}>
-            {snapshot.resumes.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-                {r.isDefault ? ' (default)' : ''}
-              </option>
-            ))}
+          <select id="ss-resume" value={controller.resumeChoice()} onChange={(e) => controller.setResume(e.target.value)}>
+            {state.tailored.length > 0 ? (
+              <optgroup label="Tailored for this job">
+                {state.tailored.map((t) => (
+                  <option key={t.id} value={`tailored:${t.id}`}>
+                    {snapshot.resumes.find((r) => r.id === t.resumeId)?.name ?? 'Resume'}, tailored{' '}
+                    {new Date(t.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            <optgroup label="Your resumes">
+              {snapshot.resumes.map((r) => (
+                <option key={r.id} value={`resume:${r.id}`}>
+                  {r.name}
+                  {r.isDefault ? ' (default)' : ''}
+                </option>
+              ))}
+            </optgroup>
             <option value="">No resume</option>
           </select>
         </div>
@@ -243,7 +302,18 @@ function Body({ state, controller }: { state: PanelState; controller: Controller
               </header>
               <ul className="items">
                 {needs.map((r) => (
-                  <ResultItem key={r.uid} result={r} tone="sky" onJump={() => controller.jump(r.uid)} />
+                  <li key={r.uid} className="need">
+                    <ul className="items">
+                      <ResultItem result={r} tone="sky" onJump={() => controller.jump(r.uid)} />
+                    </ul>
+                    {state.drafts[r.uid] ? (
+                      <DraftBox uid={r.uid} draft={state.drafts[r.uid]!} controller={controller} />
+                    ) : controller.canDraft(r.uid) ? (
+                      <button type="button" className="draft-btn" onClick={() => void controller.draft(r.uid)}>
+                        <Sparkles size={12} /> {state.snapshot?.settings.aiReady ? 'Draft with AI' : 'Draft with Claude'}
+                      </button>
+                    ) : null}
+                  </li>
                 ))}
               </ul>
             </section>

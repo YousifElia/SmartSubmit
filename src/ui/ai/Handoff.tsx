@@ -5,10 +5,9 @@
  */
 import { useState } from 'react';
 import { Check, ClipboardCopy, ExternalLink } from 'lucide-react';
+import { CLAUDE_URL } from '@/core/ai/prompts';
 import { copyText } from '../clipboard';
 import { Button, Notice, TextArea } from '../kit';
-
-export const CLAUDE_URL = 'https://claude.ai/new';
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (

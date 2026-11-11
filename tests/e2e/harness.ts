@@ -239,6 +239,8 @@ export const test = base.extend<{ app: App }>({
     await context.route('**/*', async (route) => {
       const url = new URL(route.request().url());
       if (url.protocol === 'chrome-extension:') return route.fallback();
+      // Local test servers (a stand-in for Ollama) are reached for real.
+      if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') return route.continue();
       const page = pageFor(url);
       if (!page) return route.abort();
       const isAsset = url.pathname.includes('/assets/');

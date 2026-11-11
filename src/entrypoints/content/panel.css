@@ -321,6 +321,36 @@ button.item:hover { background: #f8fafc; }
 .foot button { color: var(--muted); font-size: 11.5px; font-weight: 550; }
 .foot button:hover { color: var(--ink); }
 
+/* ── Drafts ── */
+.need { list-style: none; }
+.draft-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 6px 23px;
+  color: var(--brand);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.draft-btn:hover { text-decoration: underline; }
+.draft { margin: 2px 0 8px 23px; display: flex; flex-direction: column; gap: 6px; }
+.draft.hint { flex-direction: row; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.ss .draft textarea {
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px #cbd5e1;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+  resize: vertical;
+  background: #fff;
+}
+.ss .draft textarea:focus { outline: 2px solid var(--brand); outline-offset: 0; }
+.draft .row { gap: 10px; }
+
 /* ── This job ── */
 .job {
   padding: 10px 12px;
