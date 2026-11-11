@@ -25,6 +25,7 @@ export default defineConfig({
         icimsForm: resolve(here, 'icims-form.html'),
         icimsLogin: resolve(here, 'icims-login.html'),
         icimsJob: resolve(here, 'icims-job.html'),
+        smartrecruiters: resolve(here, 'smartrecruiters.html'),
       },
     },
   },

@@ -54,14 +54,21 @@ function uidFor(el: HTMLElement): string {
   return uid;
 }
 
-/** All matching elements under a root, descending into open shadow roots. */
+/**
+ * All matching elements under a root, in the order they appear on the page,
+ * descending into open shadow roots: a component's own content comes where
+ * the component sits.
+ */
 export function deepQueryAll<T extends Element>(root: ParentNode, selector: string): T[] {
-  const out: T[] = [...root.querySelectorAll<T>(selector)];
-  const walker = document.createTreeWalker(root as Node, NodeFilter.SHOW_ELEMENT);
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const shadow = (node as Element).shadowRoot;
-    if (shadow) out.push(...deepQueryAll<T>(shadow, selector));
-  }
+  const out: T[] = [];
+  const walk = (parent: ParentNode) => {
+    for (const child of parent.children) {
+      if (child.matches(selector)) out.push(child as T);
+      if (child.shadowRoot) walk(child.shadowRoot);
+      walk(child);
+    }
+  };
+  walk(root);
   return out;
 }
 
@@ -251,10 +258,20 @@ function headingsOf(root: ParentNode): HTMLElement[] {
   );
 }
 
-function sectionFor(el: HTMLElement, headings: HTMLElement[]): string {
+/** Position of every element under a root, in page order, shadow content included. */
+type PageOrder = Map<Element, number>;
+
+function pageOrder(root: ParentNode): PageOrder {
+  const order: PageOrder = new Map();
+  deepQueryAll(root, '*').forEach((el, i) => order.set(el, i));
+  return order;
+}
+
+function sectionFor(el: HTMLElement, headings: HTMLElement[], order: PageOrder): string {
+  const at = order.get(el) ?? Infinity;
   let found = '';
   for (const heading of headings) {
-    if (heading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) found = text(heading);
+    if ((order.get(heading) ?? Infinity) < at) found = text(heading);
     else break;
   }
   return found;
@@ -328,6 +345,7 @@ const TRAP_LABEL =
  * are merged into one field.
  */
 export function discoverFields(root: ParentNode, hooks: DiscoveryHooks = {}): FormField[] {
+  const order = pageOrder(root);
   const headings = headingsOf(root);
   const extra = hooks.extra?.(root) ?? { fields: [], claimed: [] };
   const claimed = new Set<Element>(extra.claimed);
@@ -467,7 +485,7 @@ export function discoverFields(root: ParentNode, hooks: DiscoveryHooks = {}): Fo
       ...info,
       inputType: 'text',
       options: [],
-      section: sectionFor(el, headings),
+      section: sectionFor(el, headings, order),
       multiple: false,
       el,
       anchor: el,
@@ -498,7 +516,7 @@ export function discoverFields(root: ParentNode, hooks: DiscoveryHooks = {}): Fo
     hooks.refine?.(field);
     fields.push(field);
   }
-  fields.sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+  fields.sort((a, b) => (order.get(a.el) ?? Infinity) - (order.get(b.el) ?? Infinity));
   return fields.filter((f) => !TRAP_LABEL.test(f.label));
 }
 

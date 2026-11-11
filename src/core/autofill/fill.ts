@@ -6,7 +6,7 @@
  * element's native setter and fires the same events a person's typing or
  * clicking would, so the page's own code sees the change.
  */
-import type { FormField } from './fields';
+import { deepQueryAll, type FormField } from './fields';
 import { isPlaceholderOption, matchOption, type OptionMatch } from './options';
 import { norm } from './text';
 
@@ -41,16 +41,19 @@ export function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement | HTML
   else el.value = value;
 }
 
+// A person's typing raises an `input` event that crosses shadow-root
+// boundaries (it is "composed"); `change` does not. Pages built from web
+// components can listen for either, so these events do the same.
 function fire(el: Element, type: string, init: EventInit = {}): void {
-  el.dispatchEvent(new Event(type, { bubbles: true, cancelable: true, ...init }));
+  el.dispatchEvent(new Event(type, { bubbles: true, cancelable: true, composed: type === 'input', ...init }));
 }
 
 function fireInput(el: Element, data: string): void {
   let event: Event;
   try {
-    event = new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data });
+    event = new InputEvent('input', { bubbles: true, cancelable: true, composed: true, inputType: 'insertText', data });
   } catch {
-    event = new Event('input', { bubbles: true, cancelable: true });
+    event = new Event('input', { bubbles: true, cancelable: true, composed: true });
   }
   el.dispatchEvent(event);
 }
@@ -149,9 +152,11 @@ function comboLists(field: FormField): Element[] {
   const doc = input.ownerDocument;
 
   // The list the input says it controls (react-select and most ARIA widgets do this while open).
+  // Inside a web component, look in the component's own tree first.
+  const tree = input.getRootNode() as Document | ShadowRoot;
   for (const attr of ['aria-controls', 'aria-owns']) {
     const id = input.getAttribute(attr);
-    const el = id ? doc.getElementById(id) : null;
+    const el = id ? (tree.getElementById?.(id) ?? doc.getElementById(id)) : null;
     if (el && isShown(el)) return [el];
   }
 
@@ -174,7 +179,7 @@ function comboLists(field: FormField): Element[] {
     if (inner && isShown(inner)) return [inner];
   }
   // A listbox rendered elsewhere on the page, if it is the only one showing.
-  const shown = [...doc.querySelectorAll('[role="listbox"]')].filter(isShown);
+  const shown = deepQueryAll(doc, '[role="listbox"]').filter(isShown);
   return shown.length === 1 ? [shown[0]!] : [];
 }
 

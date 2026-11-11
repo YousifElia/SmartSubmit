@@ -261,3 +261,11 @@ describe('classify: demographic questions worded only in their choices', () => {
     expect(keyOf('Which shift do you prefer?', choice('radio', ['Morning', 'Evening']))).toBeNull();
   });
 });
+
+describe('classify: degree questions', () => {
+  it('reads long wordings of the highest-degree question', () => {
+    const options = choice('select', ['High school', "Bachelor's degree", "Master's degree"]);
+    expect(keyOf('What is the highest degree you have completed or are pursuing?', options)).toBe('eduDegree');
+    expect(keyOf('What is the highest degree you have completed?', options)).toBe('eduDegree');
+  });
+});

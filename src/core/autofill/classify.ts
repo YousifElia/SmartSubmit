@@ -188,7 +188,7 @@ const RULES: Rule[] = [
   {
     key: 'eduDegree',
     label: /\bdegree\b|\b(highest\s)?(level of\s)?education(\slevel)?\b|\bhighest (level of\s)?(education|schooling)\b/,
-    not: /\b(do you|are you|have you|will you|did you|field|major|year|date|when|pursuing|relevant|in what|what was)\b/,
+    not: /\b(do you|are you|have you|will you|did you|field|major|year|date|when|relevant|in what|what was)\b/,
     hint: /(^| )degree( |$)|\beducation ?level\b/,
     question: true,
     score: 0.86,

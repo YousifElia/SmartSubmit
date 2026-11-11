@@ -241,10 +241,16 @@ export function profileValue(key: FieldKey, profile: Profile, ctx: ValueContext)
     case 'eduSchool':
       return education ? withQuery(plain(education.school)) : null;
     case 'eduDegree': {
-      if (!education) return null;
-      const level = choiceLabel(DEGREES, education.degree);
-      const forms = [education.degreeName, ...choiceForms(DEGREES, education.degree)].filter(Boolean);
-      return plain(education.degreeName || level, forms);
+      // "Highest degree completed" means a finished one; "completed or
+      // pursuing" (or no word either way) includes the one in progress.
+      const asked = norm(field.label);
+      const finishedOnly =
+        /\b(completed|obtained|earned|attained|achieved|hold)\b/.test(asked) && !/\b(pursu\w*|working towards?|in progress|currently|expected|will)\b/.test(asked);
+      const entry = finishedOnly ? educationByRecency(profile).filter((e) => !e.current)[ctx.group] : education;
+      if (!entry) return null;
+      const level = choiceLabel(DEGREES, entry.degree);
+      const forms = [entry.degreeName, ...choiceForms(DEGREES, entry.degree)].filter(Boolean);
+      return plain(entry.degreeName || level, forms);
     }
     case 'eduField':
       return education ? withQuery(plain(education.field)) : null;

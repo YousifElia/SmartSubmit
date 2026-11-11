@@ -1,0 +1,38 @@
+{
+  "id": "744000123456789",
+  "uuid": "0b9e3c1a-5f7d-4e2b-9c8a-1d2e3f4a5b6c",
+  "name": "Tools Programmer (Python)",
+  "postingUrl": "https://jobs.smartrecruiters.com/AcmeGames/744000123456789-tools-programmer-python-",
+  "company": {
+    "identifier": "AcmeGames",
+    "name": "Acme Games"
+  },
+  "location": {
+    "city": "Montreal",
+    "region": "QC",
+    "country": "ca",
+    "remote": false,
+    "hybrid": false,
+    "fullLocation": "Montreal, QC, Canada"
+  },
+  "jobAd": {
+    "sections": {
+      "companyDescription": {
+        "title": "Company Description",
+        "text": "<p>Acme Games makes games played by millions.</p>"
+      },
+      "jobDescription": {
+        "title": "Job Description",
+        "text": "<p>Build the Python tools our artists and designers use every day.</p>"
+      },
+      "qualifications": {
+        "title": "Qualifications",
+        "text": "<ul><li>5+ years of Python</li><li>Experience with REST APIs and PostgreSQL</li></ul>"
+      },
+      "additionalInformation": {
+        "title": "Additional Information",
+        "text": "<p>Hybrid: three days a week in the studio.</p>"
+      }
+    }
+  }
+}

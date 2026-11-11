@@ -190,3 +190,21 @@ describe('matchNumericRange', () => {
     expect(matchNumericRange(3, ['Yes', 'No'])).toBeNull();
   });
 });
+
+describe('highest degree', () => {
+  const options = ['High school', "Bachelor's degree", "Master's degree", 'PhD'];
+  const pick = (label: string) => {
+    const v = value('eduDegree', field(label, { kind: 'select', options }));
+    return v ? options[matchOption(v.forms, options)!.index] : null;
+  };
+
+  it('counts the degree in progress when the question allows it', () => {
+    expect(pick('What is the highest degree you have completed or are pursuing?')).toBe("Bachelor's degree");
+    expect(pick('Highest level of education')).toBe("Bachelor's degree");
+  });
+
+  it('gives only a finished one when the question asks for completed', () => {
+    expect(pick('What is the highest degree you have completed?')).toBe('High school');
+    expect(pick('Highest level of education obtained')).toBe('High school');
+  });
+});

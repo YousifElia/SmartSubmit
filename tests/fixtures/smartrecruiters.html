@@ -1,0 +1,186 @@
+<!doctype html>
+<!--
+  Replica of SmartRecruiters' one-click application
+  (jobs.smartrecruiters.com/oneclick-ui/company/<Company>/publication/<id>):
+  an app built from web components ("spl-*", as on SmartRecruiters' own
+  pages) whose fields live in open shadow roots. Text fields are only heard
+  through the input events that cross the shadow boundary; choices report
+  through the components' own events. Invented content.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tools Programmer (Python) - Acme Games</title>
+    <style>
+      body { font-family: "Open Sans", Arial, sans-serif; margin: 0; background: #f4f6f8; }
+      oc-app { display: block; max-width: 720px; margin: 0 auto; padding: 24px; background: #fff; }
+      spl-input, spl-textarea, spl-select, spl-autocomplete, spl-phone-field, spl-radio-group, spl-checkbox, spl-dropzone { display: block; margin: 16px 0; }
+    </style>
+  </head>
+  <body>
+    <oc-app>
+      <header><h1>Tools Programmer (Python)</h1><p>Acme Games · Montreal, QC, Canada</p></header>
+      <form id="application">
+        <h2>Personal information</h2>
+        <spl-input name="firstName" label="First name" required></spl-input>
+        <spl-input name="lastName" label="Last name" required></spl-input>
+        <spl-input name="email" label="Email" type="email" required></spl-input>
+        <spl-input name="confirmEmail" label="Confirm your email" type="email" required></spl-input>
+        <spl-autocomplete name="location" label="Location" required></spl-autocomplete>
+        <spl-phone-field name="phone" label="Phone number"></spl-phone-field>
+        <h2>Your profiles</h2>
+        <spl-input name="linkedin" label="LinkedIn" type="url"></spl-input>
+        <h2>Resume</h2>
+        <spl-dropzone name="resume" label="Resume" required></spl-dropzone>
+        <h2>Message to the hiring team</h2>
+        <spl-textarea name="message" label="Message to the hiring team"></spl-textarea>
+        <h2>Questions from Acme Games</h2>
+        <spl-radio-group name="authorized" label="Are you legally authorized to work in Canada?" options="Yes|No" required></spl-radio-group>
+        <spl-radio-group name="sponsorship" label="Will you require visa sponsorship now or in the future?" options="Yes|No" required></spl-radio-group>
+        <spl-select name="degree" label="What is the highest degree you have completed or are pursuing?" options="High school|Bachelor's degree|Master's degree|PhD"></spl-select>
+        <spl-input name="salary" label="What are your salary expectations?"></spl-input>
+        <spl-checkbox name="consent" label="I agree to the privacy policy" required></spl-checkbox>
+        <button type="submit">Submit</button>
+      </form>
+    </oc-app>
+    <script type="module">
+      window.__state = {};
+      window.__submitted = false;
+      const record = (name, value) => (window.__state[name] = value);
+      const style = `<style>
+        label, legend { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+        .req { color: #c00; margin-left: 2px; }
+        input:not([type=radio]):not([type=checkbox]), textarea, select { width: 100%; max-width: 420px; padding: 8px; box-sizing: border-box; border: 1px solid #bbb; border-radius: 4px; }
+        fieldset { border: 0; padding: 0; margin: 0; }
+        [role=listbox] { list-style: none; margin: 2px 0 0; padding: 4px 0; border: 1px solid #ccc; max-width: 420px; background: #fff; }
+        [role=option] { padding: 4px 10px; cursor: pointer; }
+        .row { display: flex; gap: 6px; max-width: 420px; }
+        .row select { width: 160px; }
+      </style>`;
+      const star = (host) => (host.hasAttribute('required') ? '<span class="req" aria-hidden="true">*</span>' : '');
+
+      class Base extends HTMLElement {
+        connectedCallback() {
+          if (this.shadowRoot) return;
+          this.root = this.attachShadow({ mode: 'open' });
+          this.root.innerHTML = style + this.template();
+          this.setup?.();
+        }
+        get name() { return this.getAttribute('name'); }
+        get label() { return this.getAttribute('label'); }
+        emit(value) {
+          record(this.name, value);
+          this.dispatchEvent(new CustomEvent('spl-change', { detail: value, bubbles: true, composed: true }));
+        }
+      }
+
+      // Text: no events of its own; the app listens for input on the element.
+      customElements.define('spl-input', class extends Base {
+        template() {
+          return `<label for="input">${this.label}${star(this)}</label><input id="input" name="${this.name}" type="${this.getAttribute('type') ?? 'text'}"${this.hasAttribute('required') ? ' aria-required="true"' : ''}>`;
+        }
+      });
+      customElements.define('spl-textarea', class extends Base {
+        template() { return `<label for="input">${this.label}${star(this)}</label><textarea id="input" name="${this.name}" rows="4"></textarea>`; }
+      });
+
+      customElements.define('spl-select', class extends Base {
+        template() {
+          const options = this.getAttribute('options').split('|').map((o) => `<option>${o}</option>`).join('');
+          return `<label for="select">${this.label}${star(this)}</label><select id="select" name="${this.name}"><option value="">Select</option>${options}</select>`;
+        }
+        setup() {
+          const select = this.root.querySelector('select');
+          select.addEventListener('change', () => this.emit(select.value));
+        }
+      });
+
+      customElements.define('spl-radio-group', class extends Base {
+        template() {
+          const options = this.getAttribute('options').split('|').map((o) => `<label><input type="radio" name="${this.name}" value="${o}"> ${o}</label>`).join('');
+          return `<fieldset><legend>${this.label}${star(this)}</legend>${options}</fieldset>`;
+        }
+        setup() {
+          this.root.querySelectorAll('input').forEach((radio) => radio.addEventListener('change', () => this.emit(radio.value)));
+        }
+      });
+
+      customElements.define('spl-checkbox', class extends Base {
+        template() { return `<label><input type="checkbox" name="${this.name}"> ${this.label}${star(this)}</label>`; }
+        setup() {
+          const box = this.root.querySelector('input');
+          box.addEventListener('change', () => this.emit(box.checked));
+        }
+      });
+
+      customElements.define('spl-dropzone', class extends Base {
+        template() {
+          return `<label for="file">${this.label}${star(this)}</label><div class="drop"><p>Drag and drop a file, or <button type="button">browse</button></p><input type="file" id="file" name="${this.name}" accept=".pdf,.doc,.docx" hidden></div><p class="chosen"></p>`;
+        }
+        setup() {
+          const file = this.root.querySelector('input');
+          this.root.querySelector('button').addEventListener('click', () => file.click());
+          file.addEventListener('change', () => {
+            const names = [...file.files].map((f) => f.name);
+            this.root.querySelector('.chosen').textContent = names.join(', ');
+            this.emit(names);
+          });
+        }
+      });
+
+      // City search: type, and matching places are listed.
+      const PLACES = ['Montreal, QC, Canada', 'Toronto, ON, Canada', 'Waterloo, ON, Canada', 'Windsor, CO, United States', 'Windsor, CT, United States', 'Windsor, ON, Canada'];
+      customElements.define('spl-autocomplete', class extends Base {
+        template() {
+          return `<label for="input">${this.label}${star(this)}</label><input id="input" name="${this.name}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="places" autocomplete="off"><ul id="places" role="listbox" hidden></ul>`;
+        }
+        setup() {
+          const input = this.root.querySelector('input');
+          const list = this.root.querySelector('ul');
+          let timer;
+          input.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+              const q = input.value.trim().toLowerCase();
+              const found = q.length < 2 ? [] : PLACES.filter((p) => p.toLowerCase().startsWith(q));
+              list.innerHTML = found.map((p) => `<li role="option">${p}</li>`).join('');
+              list.hidden = found.length === 0;
+              input.setAttribute('aria-expanded', String(found.length > 0));
+            }, 200);
+          });
+          list.addEventListener('click', (e) => {
+            const option = e.target.closest('[role=option]');
+            if (!option) return;
+            input.value = option.textContent;
+            list.hidden = true;
+            input.setAttribute('aria-expanded', 'false');
+            this.emit(option.textContent);
+          });
+        }
+      });
+
+      customElements.define('spl-phone-field', class extends Base {
+        template() {
+          return `<label for="number">${this.label}${star(this)}</label><div class="row"><select aria-label="Country code" name="phoneCountry"><option value="">Country</option><option value="CA">Canada (+1)</option><option value="US">United States (+1)</option><option value="GB">United Kingdom (+44)</option></select><input id="number" type="tel" name="${this.name}"></div>`;
+        }
+      });
+
+      // The app: text and phone values are heard through the input events
+      // that reach the element from inside it.
+      document.querySelectorAll('spl-input, spl-textarea, spl-phone-field').forEach((host) => {
+        host.addEventListener('input', () => {
+          if (host.localName === 'spl-phone-field') {
+            record('phoneCountry', host.shadowRoot.querySelector('select').value);
+            record('phone', host.shadowRoot.querySelector('input').value);
+          } else {
+            record(host.getAttribute('name'), host.shadowRoot.querySelector('input, textarea').value);
+          }
+        });
+      });
+      document.getElementById('application').addEventListener('submit', (e) => {
+        e.preventDefault();
+        window.__submitted = true;
+      });
+    </script>
+  </body>
+</html>

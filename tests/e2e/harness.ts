@@ -29,6 +29,7 @@ export const PAGES = {
   workday: 'https://acme.wd3.myworkdayjobs.com/en-US/AcmeCareers/job/CA-ON-Toronto/Software-Developer--Robotics-Platform_JR1234567/apply/applyManually',
   icims: 'https://careers-northwind.icims.com/jobs/1234/software-developer-co-op/candidate',
   icimsLogin: 'https://careers-northwind.icims.com/jobs/1234/software-developer-co-op/login',
+  smartrecruiters: 'https://jobs.smartrecruiters.com/oneclick-ui/company/AcmeGames/publication/0b9e3c1a-5f7d-4e2b-9c8a-1d2e3f4a5b6c?dcr_ci=AcmeGames',
 } as const;
 
 const FILE_FOR_HOST: Record<string, string> = {
@@ -49,6 +50,9 @@ function pageFor(url: URL): string | undefined {
     if (url.pathname.endsWith('/job')) return 'icims-job.html';
     return 'icims-form.html';
   }
+  if (url.hostname === 'jobs.smartrecruiters.com' && url.pathname.startsWith('/oneclick-ui/')) return 'smartrecruiters.html';
+  // SmartRecruiters' public posting API, open to any site.
+  if (url.hostname === 'api.smartrecruiters.com') return '../smartrecruiters-posting.json';
   // Workday's public job data, which its pages load from the same host.
   if (url.hostname.endsWith('.myworkdayjobs.com') && url.pathname.startsWith('/wday/cxs/')) return '../workday-job.json';
   return FILE_FOR_HOST[url.hostname];
@@ -273,7 +277,9 @@ export async function launchApp(options: LaunchOptions = {}): Promise<{ app: App
     const file = isAsset ? join(FIXTURES, 'assets', basename(url.pathname)) : join(FIXTURES, page);
     const ext = file.split('.').pop() ?? 'html';
     try {
-      await route.fulfill({ status: 200, contentType: TYPES[ext] ?? 'application/octet-stream', body: readFileSync(file) });
+      // JSON stands in for public APIs, which allow any site to read them.
+      const headers = ext === 'json' ? { 'access-control-allow-origin': '*' } : undefined;
+      await route.fulfill({ status: 200, contentType: TYPES[ext] ?? 'application/octet-stream', headers, body: readFileSync(file) });
     } catch {
       await route.fulfill({ status: 404, body: 'Not found' });
     }
