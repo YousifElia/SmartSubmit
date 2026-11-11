@@ -221,13 +221,22 @@ export function compatClient(baseUrl: string, apiKey: string, model: string): Ai
           { role: 'user', content: prompt.user },
         ],
       };
-      let response = await send(schema ? { ...body, response_format: { type: 'json_schema', json_schema: { name: 'reply', schema } } } : body, signal);
-      // Not every server supports constrained JSON; the prompt asks for JSON anyway.
-      if (schema && (response.status === 400 || response.status === 422)) response = await send(body, signal);
-      if (!response.ok) await fail(response);
+      // Servers ask for constrained JSON in different ways: OpenAI's style (LM
+      // Studio, vLLM, llama.cpp), then llama.cpp's own, then not at all; the
+      // prompt asks for JSON either way.
+      const formats = schema
+        ? [{ type: 'json_schema', json_schema: { name: 'reply', schema } }, { type: 'json_object', schema }, null]
+        : [null];
+      let response: Response | null = null;
+      for (const format of formats) {
+        response = await send(format ? { ...body, response_format: format } : body, signal);
+        if (response.status !== 400 && response.status !== 422) break;
+        await response.body?.cancel().catch(() => undefined);
+      }
+      if (!response!.ok) await fail(response!);
 
       let text = '';
-      for await (const line of lines(response, signal)) {
+      for await (const line of lines(response!, signal)) {
         if (!line.startsWith('data:')) continue;
         const data = line.slice(5).trim();
         if (data === '[DONE]') break;

@@ -14,7 +14,7 @@ interface Seen {
   body: Record<string, unknown>;
 }
 const seen: Seen[] = [];
-let mode: 'ok' | 'forbidden' | 'missing-model' | 'no-schema' = 'ok';
+let mode: 'ok' | 'forbidden' | 'missing-model' | 'no-schema' | 'json-object' = 'ok';
 let reply = '';
 
 function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -53,6 +53,8 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
   if (req.url === '/v1/chat/completions') {
     if (mode === 'no-schema' && body.response_format) return void res.writeHead(400).end('response_format not supported');
+    // Like llama-cpp-python: only its own json_object form is accepted.
+    if (mode === 'json-object' && (body.response_format as { type?: string } | undefined)?.type === 'json_schema') return void res.writeHead(422).end('unknown type');
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     for (let i = 0; i < reply.length; i += 40) res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: reply.slice(i, i + 40) } }] })}\n\n`);
     return void res.end('data: [DONE]\n\n');
@@ -146,9 +148,19 @@ describe('OpenAI-compatible client', () => {
     reply = JSON.stringify({ resume, changes: [], gaps: [] });
     const result = await runTailor(compatClient(base, '', 'local-model'), { resume, job, strength: 'light', keywords: { matched: [], missing: [] } });
     expect(result.doc.experience).toHaveLength(2);
+    const attempts = seen.filter((s) => s.path === '/v1/chat/completions').slice(-3);
+    expect((attempts[0]!.body.response_format as { type: string }).type).toBe('json_schema');
+    expect((attempts[1]!.body.response_format as { type: string }).type).toBe('json_object');
+    expect(attempts[2]!.body.response_format).toBeUndefined();
+  });
+
+  it('uses llama.cpp’s own way of asking for JSON when OpenAI’s is refused', async () => {
+    mode = 'json-object';
+    reply = JSON.stringify({ resume, changes: [], gaps: [] });
+    await runTailor(compatClient(base, '', 'local-model'), { resume, job, strength: 'light', keywords: { matched: [], missing: [] } });
     const attempts = seen.filter((s) => s.path === '/v1/chat/completions').slice(-2);
-    expect(attempts[0]!.body.response_format).toBeDefined();
-    expect(attempts[1]!.body.response_format).toBeUndefined();
+    expect((attempts[1]!.body.response_format as { type: string; schema: unknown }).type).toBe('json_object');
+    expect((attempts[1]!.body.response_format as { schema: unknown }).schema).toBeDefined();
   });
 });
 
