@@ -442,8 +442,14 @@ export class Controller {
     const snapshot = this.state.snapshot;
     if (!snapshot || !snapshot.settings.autofill.learn) return;
     const found = collectCandidates(this.fields, this.state.results, snapshot.answers).filter((c) => !this.dismissed.has(c.uid));
-    const same = JSON.stringify(found) === JSON.stringify(this.state.candidates);
-    if (!same) this.set({ candidates: found });
+    // A form in steps replaces its questions as it moves on. Answers given on
+    // an earlier step stay on offer until they are saved or dismissed.
+    const departed = this.state.candidates.filter(
+      (c) => !found.some((f) => f.uid === c.uid) && !this.dismissed.has(c.uid) && !this.fields.find((f) => f.uid === c.uid)?.el.isConnected,
+    );
+    const next = [...departed, ...found];
+    const same = JSON.stringify(next) === JSON.stringify(this.state.candidates);
+    if (!same) this.set({ candidates: next });
   }
 
   private startWatching(): void {
@@ -469,6 +475,8 @@ export class Controller {
         host: this.doc.location.hostname,
         items: items.map(({ question, kind, answer, options }) => ({ question, kind, answer, options })),
       });
+      // Saved: no longer on offer, even for questions no longer on the page.
+      this.set({ candidates: this.state.candidates.filter((c) => !uids.includes(c.uid)) });
       await this.loadSnapshot();
       // Saved questions now count as known.
       const results = this.state.results.map((r) =>

@@ -369,6 +369,21 @@ function datePart(field: FieldInfo): '' | 'Month' | 'Year' {
 
 const DATE_KEYS = new Set<FieldKey>(['eduStart', 'eduEnd', 'expStart', 'expEnd']);
 
+/**
+ * Demographic questions are sometimes worded only in their choices: the
+ * U.S. disability form asks "Please check one of the boxes below".
+ */
+function fromOptions(field: FieldInfo): Classification | null {
+  if (!CHOICE.includes(field.kind) || field.options.length < 2) return null;
+  const options = field.options.map(norm);
+  const count = (pattern: RegExp) => options.filter((o) => pattern.test(o)).length;
+  if (count(/\bdisabilit(y|ies)\b/) >= 2) return { key: 'disability', confidence: 0.85 };
+  if (count(/\bveterans?\b/) >= 2) return { key: 'veteran', confidence: 0.85 };
+  if (count(/^(male|man)$/) >= 1 && count(/^(female|woman)$/) >= 1) return { key: 'gender', confidence: 0.85 };
+  if (count(/\bhispanic or latin[oax]\b/) >= 2) return { key: 'hispanic', confidence: 0.8 };
+  return null;
+}
+
 /** Identify what a field is asking for, or null if it is not a profile question. */
 export function classify(field: FieldInfo): Classification | null {
   const label = norm(field.label);
@@ -426,7 +441,7 @@ export function classify(field: FieldInfo): Classification | null {
     }
   }
 
-  if (!best || best.confidence < 0.6) return null;
+  if (!best || best.confidence < 0.6) return fromOptions(field);
 
   let key = best.key;
   if (DATE_KEYS.has(key)) {

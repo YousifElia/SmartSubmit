@@ -20,6 +20,7 @@ export default defineConfig({
         lever: resolve(here, 'lever.html'),
         leverPosting: resolve(here, 'lever-posting.html'),
         generic: resolve(here, 'generic.html'),
+        workday: resolve(here, 'workday.html'),
       },
     },
   },

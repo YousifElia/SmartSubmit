@@ -9,7 +9,7 @@ import type { ControlKind, FieldInfo, FieldKey } from './model';
 import { cleanLabel } from './text';
 
 /** Custom widgets that need their own way of being driven. */
-export type Widget = '' | 'react-select' | 'aria-combobox' | 'intl-tel' | 'lever-location';
+export type Widget = '' | 'react-select' | 'aria-combobox' | 'intl-tel' | 'lever-location' | 'listbox-button' | 'workday-prompt';
 
 export interface FormField extends FieldInfo {
   /** Stable for the lifetime of the page. */

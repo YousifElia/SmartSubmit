@@ -1,0 +1,17 @@
+{
+  "jobPostingInfo": {
+    "id": "0aa1",
+    "title": "Software Developer, Robotics Platform",
+    "jobDescription": "<p>Acme Robotics builds warehouse robots that move parcels across Canada.</p><p><b>What you’ll be doing:</b></p><ul><li>Build services in Go and Python</li><li>Ship internal tools with TypeScript and React</li></ul><p><b>What we need to see:</b></p><ul><li>Experience with Kubernetes and Docker</li><li>Strong SQL</li></ul>",
+    "location": "CA, ON, Toronto",
+    "postedOn": "Posted 3 Days Ago",
+    "timeType": "Full time",
+    "jobReqId": "JR1234567",
+    "country": { "descriptor": "Canada", "id": "c1" },
+    "canApply": true,
+    "externalUrl": "https://acme.wd3.myworkdayjobs.com/AcmeCareers/job/CA-ON-Toronto/Software-Developer--Robotics-Platform_JR1234567"
+  },
+  "hiringOrganization": { "name": "1100 ACME Robotics Canada ULC", "url": "" },
+  "similarJobs": [],
+  "userAuthenticated": true
+}

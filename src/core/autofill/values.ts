@@ -107,13 +107,15 @@ export function formatYearMonth(value: string, field: FieldInfo): string {
   return `${MONTHS[Number(month) - 1] ?? month} ${year}`;
 }
 
-function monthValue(value: string): ResolvedValue | null {
+function monthValue(value: string, field?: FieldInfo): ResolvedValue | null {
   const month = value.split('-')[1];
   if (!month) return null;
   const name = MONTHS[Number(month) - 1];
   if (!name) return null;
+  // A box that asks for the month as digits ("MM", as Workday's do).
+  const digits = !!field && (/^m{1,2}$/i.test(field.placeholder.trim()) || field.inputType === 'number');
   return {
-    text: name,
+    text: digits ? month : name,
     forms: [name, name.slice(0, 3), month, String(Number(month)), `${month} - ${name}`, `${name} (${month})`],
     certainty: 1,
   };
@@ -253,13 +255,13 @@ export function profileValue(key: FieldKey, profile: Profile, ctx: ValueContext)
     case 'eduStart':
       return education ? dateValue(education.start, field) : null;
     case 'eduStartMonth':
-      return education ? monthValue(education.start) : null;
+      return education ? monthValue(education.start, ctx.field) : null;
     case 'eduStartYear':
       return education ? yearValue(education.start) : null;
     case 'eduEnd':
       return education ? dateValue(education.end, field) : null;
     case 'eduEndMonth':
-      return education ? monthValue(education.end) : null;
+      return education ? monthValue(education.end, ctx.field) : null;
     case 'eduEndYear':
       return education ? yearValue(education.end) : null;
     case 'eduCurrent':
@@ -277,13 +279,13 @@ export function profileValue(key: FieldKey, profile: Profile, ctx: ValueContext)
     case 'expStart':
       return experience ? dateValue(experience.start, field) : null;
     case 'expStartMonth':
-      return experience ? monthValue(experience.start) : null;
+      return experience ? monthValue(experience.start, ctx.field) : null;
     case 'expStartYear':
       return experience ? yearValue(experience.start) : null;
     case 'expEnd':
       return experience && !experience.current ? dateValue(experience.end, field) : null;
     case 'expEndMonth':
-      return experience && !experience.current ? monthValue(experience.end) : null;
+      return experience && !experience.current ? monthValue(experience.end, ctx.field) : null;
     case 'expEndYear':
       return experience && !experience.current ? yearValue(experience.end) : null;
     case 'expCurrent':

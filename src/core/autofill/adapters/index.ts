@@ -4,11 +4,13 @@ import { generic } from './generic';
 import { greenhouse } from './greenhouse';
 import { lever } from './lever';
 import type { SiteAdapter } from './types';
+import { workday } from './workday';
 
 const ADAPTERS: Partial<Record<SiteId, SiteAdapter>> = {
   greenhouse,
   lever,
   ashby,
+  workday,
   generic,
 };
 

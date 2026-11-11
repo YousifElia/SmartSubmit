@@ -239,6 +239,17 @@ function typeInto(input: HTMLInputElement, text: string): void {
 /** What a combobox currently shows as chosen, or '' if nothing. */
 export function comboValue(field: FormField): string {
   const input = field.el as HTMLInputElement;
+  if (field.widget === 'listbox-button') {
+    // The button shows the choice, or "Select One".
+    const shown = (input.textContent ?? '').replace(/\s+/g, ' ').trim();
+    return isPlaceholderOption(shown) ? '' : shown;
+  }
+  if (field.widget === 'workday-prompt') {
+    // Choices appear as removable items beside the search box.
+    const scope = input.closest('[data-automation-id^="formField-"]') ?? input.parentElement;
+    const chosen = scope ? [...scope.querySelectorAll('[data-automation-id="selectedItem"]')] : [];
+    return chosen.map((c) => (c.textContent ?? '').replace(/[×✕]/g, '').replace(/\s+/g, ' ').trim()).filter(Boolean).join(', ');
+  }
   if (field.widget === 'react-select') {
     const shell = input.closest('[class*="select__control"], [class*="-control"]') ?? input.parentElement;
     const multi = shell ? [...shell.querySelectorAll('[class*="multi-value__label"], [class*="multiValue"] > div:first-child')] : [];
@@ -289,12 +300,18 @@ export async function fillCombobox(field: FormField, value: ComboFill): Promise<
     const queries = [...new Set([value.query ?? '', forms[0] ?? '', value.text].map((q) => q.trim()).filter(Boolean))];
     for (const query of queries.slice(0, 2)) {
       const before = options?.map((o) => o.text).join('|') ?? '';
-      typeInto(input, query);
-      // Wait for the list to react to the typing (it may load from a server).
-      options = await waitFor(() => {
+      const changed = () => {
         const now = read();
         return now && now.map((o) => o.text).join('|') !== before ? now : null;
-      }, 3000, 80);
+      };
+      typeInto(input, query);
+      // Wait for the list to react to the typing (it may load from a server).
+      // Workday's prompts search when Enter is pressed.
+      if (field.widget === 'workday-prompt') {
+        options = await waitFor(changed, 700, 80);
+        if (!options) input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+      }
+      options = options ?? (await waitFor(changed, 3000, 80));
       options ??= read();
       if (!options) continue;
       pick = choose(options, 0.7);
@@ -318,6 +335,21 @@ export async function fillCombobox(field: FormField, value: ComboFill): Promise<
 
   clickLikeAUser(pick.option.el);
   await sleep(60);
+  // A prompt option can be a category that opens a further list (Workday's
+  // "Job Board" → "Indeed"). Choose within it.
+  if (field.widget === 'workday-prompt' && !comboValue(field)) {
+    const inner = await waitFor(read, 800);
+    const deeper = inner ? choose(inner, 0.7) : null;
+    if (deeper) {
+      clickLikeAUser(deeper.option.el);
+      await sleep(60);
+      pick = deeper;
+    }
+    if (!comboValue(field)) {
+      closeCombo(field);
+      return null;
+    }
+  }
   // Some lists stay open after a choice; make sure this one is closed.
   if (input.getAttribute('aria-expanded') === 'true') closeCombo(field);
   return pick.option.text;

@@ -26,6 +26,7 @@ export const PAGES = {
   lever: 'https://jobs.lever.co/acme/6ed76ce8-4156-4b60-b120-403538bd66cd/apply',
   ashby: 'https://jobs.ashbyhq.com/acme/34413f8d-26bf-4bbc-8ade-eb309a0e2245/application',
   generic: 'https://careers.mapleleaf.example/apply',
+  workday: 'https://acme.wd3.myworkdayjobs.com/en-US/AcmeCareers/job/CA-ON-Toronto/Software-Developer--Robotics-Platform_JR1234567/apply/applyManually',
 } as const;
 
 const FILE_FOR_HOST: Record<string, string> = {
@@ -33,11 +34,14 @@ const FILE_FOR_HOST: Record<string, string> = {
   'jobs.lever.co': 'lever.html',
   'jobs.ashbyhq.com': 'ashby.html',
   'careers.mapleleaf.example': 'generic.html',
+  'acme.wd3.myworkdayjobs.com': 'workday.html',
 };
 
 /** The replica page for a URL: on Lever, the posting and its application form are separate pages. */
 function pageFor(url: URL): string | undefined {
   if (url.hostname === 'jobs.lever.co' && !/\/apply\/?$/.test(url.pathname)) return 'lever-posting.html';
+  // Workday's public job data, which its pages load from the same host.
+  if (url.hostname.endsWith('.myworkdayjobs.com') && url.pathname.startsWith('/wday/cxs/')) return '../workday-job.json';
   return FILE_FOR_HOST[url.hostname];
 }
 
@@ -45,6 +49,7 @@ const TYPES: Record<string, string> = {
   html: 'text/html; charset=utf-8',
   js: 'text/javascript; charset=utf-8',
   css: 'text/css; charset=utf-8',
+  json: 'application/json',
   webp: 'image/webp',
 };
 

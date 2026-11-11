@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Software Developer, Robotics Platform</title>
+    <style>
+      body { font-family: Roboto, Arial, sans-serif; margin: 0; background: #f6f7f8; color: #333; }
+      main { max-width: 760px; margin: 0 auto; padding: 24px; background: #fff; }
+      .progress { display: flex; gap: 12px; list-style: none; padding: 0; font-size: 11px; }
+      .progress li { display: flex; flex-direction: column; }
+      [data-automation-id^="formField-"] { margin: 16px 0; }
+      fieldset { border: 0; padding: 0; }
+      label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+      fieldset div label, [data-automation-id="formField-preferredNameCheckbox"] label, [data-automation-id="formField-currentlyWorkHere"] label, [data-automation-id="formField-agreementCheckbox"] label { display: inline; font-weight: 400; }
+      abbr { color: #de2e21; text-decoration: none; margin-left: 2px; }
+      input[type="text"], textarea { width: 100%; max-width: 376px; padding: 8px; border: 1px solid #a0a0a0; border-radius: 3px; box-sizing: border-box; }
+      .date { display: flex; gap: 6px; }
+      .date input { width: 70px; }
+      button[aria-haspopup="listbox"] { min-width: 240px; text-align: left; padding: 8px; background: #fff; border: 1px solid #a0a0a0; border-radius: 3px; }
+      .popup { position: absolute; z-index: 10; background: #fff; border: 1px solid #ccc; box-shadow: 0 4px 12px rgba(0,0,0,.15); max-height: 260px; overflow: auto; }
+      .popup ul { list-style: none; margin: 0; padding: 4px 0; }
+      .popup li { padding: 6px 12px; cursor: pointer; }
+      .popup li:hover { background: #eef2f6; }
+      .prompt-list { border: 1px solid #ccc; max-width: 376px; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+      .prompt-list .option { padding: 6px 12px; cursor: pointer; }
+      .prompt-list .category::after { content: " ›"; color: #999; }
+      .chips { list-style: none; padding: 0; margin: 0 0 4px; display: flex; gap: 6px; }
+      .chip { display: flex; align-items: center; gap: 4px; background: #e9eef3; border-radius: 12px; padding: 2px 8px; }
+      .chip p { margin: 0; font-size: 13px; }
+      .drop { border: 1px dashed #a0a0a0; padding: 16px; text-align: center; }
+      .footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/workday.tsx"></script>
+  </body>
+</html>
