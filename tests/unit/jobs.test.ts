@@ -1,14 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { blocksToText, htmlToBlocks } from '@/core/jobs/html';
-import { canonicalUrl, captureJob, companyFromHost, jobCountry, postingKey } from '@/core/jobs/extract';
+import { canonicalUrl, captureJob, companyFromHost, jobCountry, postingKey, smartRecruitersIds, workdayIds } from '@/core/jobs/extract';
 import {
   ASHBY_PAGE,
   GENERIC_PAGE,
   GREENHOUSE_API,
   GREENHOUSE_EMBED_PAGE,
   GREENHOUSE_PAGE,
+  ICIMS_JOB_PAGE,
+  ICIMS_LOGIN_PAGE,
   LEVER_APPLY_PAGE,
   LEVER_POSTING_PAGE,
+  SMARTRECRUITERS_API,
+  SMARTRECRUITERS_POSTING_PAGE,
+  WORKABLE_API,
+  WORKABLE_APPLY_PAGE,
+  WORKDAY_API,
 } from '../fixtures/pages/jobs';
 
 const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html');
@@ -167,5 +174,121 @@ describe('posting identity', () => {
     expect(companyFromHost('careers.mapleleaf.example')).toBe('Mapleleaf');
     expect(companyFromHost('www.acme.com')).toBe('Acme');
     expect(companyFromHost('jobs.example.co')).toBe('Example');
+  });
+});
+
+describe('Workday', () => {
+  const posting = 'https://acme.wd3.myworkdayjobs.com/en-US/AcmeCareers/job/CA-ON-Toronto/Software-Developer--Robotics-Platform_JR1234567';
+
+  it('finds the tenant, site and job in any of its addresses', () => {
+    const expected = { tenant: 'acme', site: 'AcmeCareers', path: '/job/CA-ON-Toronto/Software-Developer--Robotics-Platform_JR1234567', req: 'JR1234567' };
+    expect(workdayIds(new URL(posting))).toEqual(expected);
+    expect(workdayIds(new URL(`${posting}/apply/applyManually`))).toEqual(expected);
+    expect(workdayIds(new URL('https://acme.wd3.myworkdayjobs.com/AcmeCareers/job/CA-ON-Toronto/Software-Developer--Robotics-Platform_JR1234567'))).toEqual(expected);
+    expect(workdayIds(new URL('https://wd3.myworkdaysite.com/en-US/recruiting/acme/AcmeCareers/job/CA-ON-Toronto/Software-Developer--Robotics-Platform_JR1234567/apply'))).toEqual(expected);
+    expect(workdayIds(new URL('https://acme.wd3.myworkdayjobs.com/en-US/AcmeCareers'))).toBeNull();
+  });
+
+  it('reads the posting from Workday’s job data, naming the company by its brand', async () => {
+    const fetcher = vi.fn(async () => response(WORKDAY_API));
+    const job = await captureJob(parse('<html><body><main></main></body></html>'), 'workday', `${posting}/apply/applyManually`, fetcher);
+    expect(fetcher).toHaveBeenCalledWith('https://acme.wd3.myworkdayjobs.com/wday/cxs/acme/AcmeCareers/job/CA-ON-Toronto/Software-Developer--Robotics-Platform_JR1234567');
+    expect(job).toMatchObject({
+      key: 'workday:acme/jr1234567',
+      title: 'Software Developer, Robotics Platform',
+      company: 'ACME',
+      location: 'CA, ON, Toronto',
+      url: WORKDAY_API.jobPostingInfo.externalUrl,
+    });
+    expect(job!.description).toContain('Experience with Kubernetes');
+    expect(jobCountry(job!.location)).toBe('CA');
+    expect(postingKey('workday', new URL(posting))).toBe(job!.key);
+  });
+
+  it('adds the country when the location doesn’t name one', async () => {
+    const data = { ...WORKDAY_API, jobPostingInfo: { ...WORKDAY_API.jobPostingInfo, location: 'Remote', country: { descriptor: 'United States of America' } } };
+    const job = await captureJob(parse('<html></html>'), 'workday', posting, async () => response(data));
+    expect(job!.location).toBe('Remote (United States of America)');
+    expect(jobCountry(job!.location)).toBe('US');
+  });
+});
+
+describe('iCIMS', () => {
+  it('reads the posting page’s schema.org data', async () => {
+    const job = await captureJob(parse(ICIMS_JOB_PAGE), 'icims', 'https://careers-northwind.icims.com/jobs/1234/software-developer-co-op/job?in_iframe=1&mobile=false', noFetch);
+    expect(job).toMatchObject({
+      key: 'icims:careers-northwind.icims.com/1234',
+      title: 'Software Developer Co-op',
+      company: 'Northwind Systems, Inc',
+      location: 'Waterloo, ON, CA',
+      url: 'https://careers-northwind.icims.com/jobs/1234/software-developer-co-op/job',
+    });
+    expect(job!.description).toContain('Experience with C++ or Python');
+  });
+
+  it('fetches the posting from the sign-in step, which shows none of it', async () => {
+    const fetcher = vi.fn(async () => response(ICIMS_JOB_PAGE));
+    const job = await captureJob(parse(ICIMS_LOGIN_PAGE), 'icims', 'https://careers-northwind.icims.com/jobs/1234/software-developer-co-op/login?in_iframe=1', fetcher);
+    expect(fetcher).toHaveBeenCalledWith('https://careers-northwind.icims.com/jobs/1234/software-developer-co-op/job?in_iframe=1');
+    expect(job).toMatchObject({ key: 'icims:careers-northwind.icims.com/1234', title: 'Software Developer Co-op' });
+  });
+});
+
+describe('SmartRecruiters', () => {
+  const apply = `https://jobs.smartrecruiters.com/oneclick-ui/company/AcmeGames/publication/${SMARTRECRUITERS_API.uuid}?dcr_ci=AcmeGames`;
+  const postingPage = 'https://jobs.smartrecruiters.com/AcmeGames/744000123456789-tools-programmer-python-';
+
+  it('knows the posting from either of its addresses', () => {
+    expect(smartRecruitersIds(new URL(apply))).toEqual({ company: 'AcmeGames', posting: SMARTRECRUITERS_API.uuid });
+    expect(smartRecruitersIds(new URL(postingPage))).toEqual({ company: 'AcmeGames', posting: '744000123456789' });
+  });
+
+  it('reads the posting from the public API on the application page', async () => {
+    const fetcher = vi.fn(async () => response(SMARTRECRUITERS_API));
+    const job = await captureJob(parse('<html><body><div id="app"></div></body></html>'), 'smartrecruiters', apply, fetcher);
+    expect(fetcher).toHaveBeenCalledWith(`https://api.smartrecruiters.com/v1/companies/AcmeGames/postings/${SMARTRECRUITERS_API.uuid}`);
+    expect(job).toMatchObject({
+      key: `smartrecruiters:acmegames/${SMARTRECRUITERS_API.uuid}`,
+      title: 'Tools Programmer (Python)',
+      company: 'Acme Games',
+      location: 'Montreal, QC, Canada',
+      url: SMARTRECRUITERS_API.postingUrl,
+    });
+    expect(job!.blocks).toContainEqual({ type: 'heading', text: 'Qualifications' });
+    expect(job!.description).toContain('Experience with REST APIs and PostgreSQL');
+  });
+
+  it('falls back to the posting page’s microdata, under the same identity', async () => {
+    const job = await captureJob(parse(SMARTRECRUITERS_POSTING_PAGE), 'smartrecruiters', postingPage, noFetch);
+    expect(job).toMatchObject({
+      key: `smartrecruiters:acmegames/${SMARTRECRUITERS_API.uuid}`,
+      title: 'Tools Programmer (Python)',
+      company: 'Acme Games',
+      location: 'Montreal, Québec, Canada',
+    });
+    expect(job!.description).toContain('Build the tools our artists use every day.');
+    expect(job!.description).not.toContain('I’m interested');
+  });
+});
+
+describe('Workable', () => {
+  it('reads the posting from the job data Workable’s pages load', async () => {
+    const fetcher = vi.fn(async () => response(WORKABLE_API));
+    const job = await captureJob(parse(WORKABLE_APPLY_PAGE), 'workable', 'https://apply.workable.com/northwind-freight/j/B4F2A19C7D/apply/', fetcher);
+    expect(fetcher).toHaveBeenCalledWith('https://apply.workable.com/api/v2/accounts/northwind-freight/jobs/B4F2A19C7D');
+    expect(job).toMatchObject({
+      key: 'workable:northwind-freight/b4f2a19c7d',
+      title: 'Junior Backend Developer',
+      company: 'Northwind Freight',
+      location: 'Vancouver, British Columbia, Canada',
+      url: 'https://apply.workable.com/northwind-freight/j/B4F2A19C7D/',
+    });
+    expect(job!.blocks).toContainEqual({ type: 'heading', text: 'Requirements' });
+    expect(postingKey('workable', new URL('https://apply.workable.com/northwind-freight/j/B4F2A19C7D/'))).toBe(job!.key);
+  });
+
+  it('still has the title and company when the job data can’t be fetched', async () => {
+    const job = await captureJob(parse(WORKABLE_APPLY_PAGE), 'workable', 'https://apply.workable.com/northwind-freight/j/B4F2A19C7D/apply/', noFetch);
+    expect(job).toMatchObject({ title: 'Junior Backend Developer', company: 'Northwind Freight' });
   });
 });

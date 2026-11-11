@@ -3,10 +3,11 @@
  * location and the full description.
  *
  * Sources, best first:
- *   1. what the application system itself publishes (the Greenhouse job board
- *      API, the description on a Lever posting page),
- *   2. schema.org JobPosting data, which Ashby, Lever and many career sites
- *      embed for search engines,
+ *   1. what the application system itself publishes (the Greenhouse, Workday,
+ *      SmartRecruiters and Workable job APIs, the description on a Lever or
+ *      iCIMS posting page),
+ *   2. schema.org JobPosting data, as JSON-LD or microdata, which most
+ *      systems and many career sites embed for search engines,
  *   3. the page itself: its main heading and largest block of text.
  */
 import { COUNTRIES, REGIONS } from '../data/geo';
@@ -30,6 +31,8 @@ export interface JobCapture {
 type Fetcher = (url: string) => Promise<Response>;
 
 interface Pieces {
+  /** The posting's identity when the system's own data gives a better one than the address. */
+  key?: string;
   title?: string;
   company?: string;
   location?: string;
@@ -124,6 +127,30 @@ export function readJsonLd(doc: Document): Pieces | null {
   return null;
 }
 
+/** The same schema.org data written as microdata (itemprop attributes). */
+export function readMicrodata(doc: Document): Pieces | null {
+  const scope = doc.querySelector('[itemscope][itemtype$="schema.org/JobPosting"]');
+  if (!scope) return null;
+  const prop = (root: Element, name: string) => root.querySelector(`[itemprop="${name}"]`);
+  const value = (el: Element | null) => clean(el?.getAttribute('content') ?? el?.textContent);
+  const org = prop(scope, 'hiringOrganization');
+  const address = scope.querySelector('[itemprop="jobLocation"] [itemprop="address"]') ?? prop(scope, 'jobLocation');
+  const parts = address ? ['addressLocality', 'addressRegion', 'addressCountry'].map((name) => value(address.querySelector(`[itemprop="${name}"]`))) : [];
+  const description = prop(scope, 'description');
+  let blocks: RichBlock[] = [];
+  if (description) {
+    const copy = description.cloneNode(true) as Element;
+    copy.querySelectorAll(NOISE).forEach((n) => n.remove());
+    blocks = elementToBlocks(copy);
+  }
+  return {
+    title: value(prop(scope, 'title')),
+    company: org ? value(org.querySelector('[itemprop="name"]')) || value(org) : '',
+    location: parts.filter((p, i) => p && !parts.slice(0, i).includes(p)).join(', '),
+    blocks,
+  };
+}
+
 // ───────────────────────────── Per site ─────────────────────────────
 
 /** Greenhouse board and posting id from any of its URL shapes. */
@@ -191,6 +218,193 @@ async function lever(doc: Document, url: URL, fetcher: Fetcher): Promise<Pieces>
     blocks: ld?.blocks ?? [],
     url: postingUrl || undefined,
   };
+}
+
+/**
+ * Tenant, career site and job from a Workday address: the posting page or any
+ * step of its application, on myworkdayjobs.com or myworkdaysite.com.
+ */
+export function workdayIds(url: URL): { tenant: string; site: string; path: string; req: string } | null {
+  const parts = url.pathname.split('/').filter(Boolean);
+  const job = parts.indexOf('job');
+  if (job < 1) return null;
+  let tenant: string;
+  if (url.hostname.endsWith('.myworkdaysite.com')) {
+    // wd3.myworkdaysite.com/en-US/recruiting/<tenant>/<site>/job/...
+    const recruiting = parts.indexOf('recruiting');
+    if (recruiting < 0 || recruiting + 3 !== job) return null;
+    tenant = parts[recruiting + 1]!;
+  } else {
+    tenant = url.hostname.split('.')[0]!;
+  }
+  // The job's own segments end where the application's steps begin.
+  const rest = parts.slice(job + 1);
+  const apply = rest.indexOf('apply');
+  const own = apply >= 0 ? rest.slice(0, apply) : rest;
+  if (own.length === 0) return null;
+  const last = own[own.length - 1]!;
+  return { tenant, site: parts[job - 1]!, path: `/job/${own.join('/')}`, req: /_([A-Za-z0-9-]+)$/.exec(last)?.[1] ?? last };
+}
+
+/**
+ * Workday names the hiring legal entity ("2100 NVIDIA USA"); the tenant name
+ * says which part of that is the brand people know.
+ */
+function workdayCompany(tenant: string, org: string | undefined): string {
+  const name = clean(org);
+  const brand = new RegExp(`\\b${tenant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').exec(name);
+  if (brand) return brand[0];
+  if (name && !/^\d/.test(name)) return name;
+  return tenant.charAt(0).toUpperCase() + tenant.slice(1);
+}
+
+async function workday(doc: Document, url: URL, fetcher: Fetcher): Promise<Pieces> {
+  const ids = workdayIds(url);
+  if (!ids) return {};
+  const pieces: Pieces = { key: `workday:${ids.tenant}/${ids.req}`.toLowerCase(), url: `${url.origin}/${ids.site}${ids.path}` };
+  let org: string | undefined;
+  try {
+    // The same public data the posting page loads for itself.
+    const response = await fetcher(`${url.origin}/wday/cxs/${encodeURIComponent(ids.tenant)}/${encodeURIComponent(ids.site)}${ids.path}`);
+    if (response.ok) {
+      const data = (await response.json()) as {
+        jobPostingInfo?: { title?: string; jobDescription?: string; location?: string; additionalLocations?: string[]; country?: { descriptor?: string }; externalUrl?: string };
+        hiringOrganization?: { name?: string };
+      };
+      const info = data.jobPostingInfo;
+      if (info) {
+        pieces.title = clean(info.title);
+        const places = [info.location, ...(info.additionalLocations ?? [])].map(clean).filter(Boolean);
+        let location = [...new Set(places)].join(' · ');
+        const country = clean(info.country?.descriptor);
+        if (country && places.length === 1 && !jobCountry(location)) location = `${location} (${country})`;
+        pieces.location = location || country;
+        pieces.blocks = info.jobDescription ? htmlToBlocks(info.jobDescription) : [];
+        if (info.externalUrl) pieces.url = info.externalUrl;
+      }
+      org = data.hiringOrganization?.name;
+    }
+  } catch {
+    // Use whatever the page has.
+  }
+  pieces.company = workdayCompany(ids.tenant, org ?? readJsonLd(doc)?.company);
+  return pieces;
+}
+
+async function icims(doc: Document, url: URL, fetcher: Fetcher): Promise<Pieces> {
+  // careers-<company>.icims.com/jobs/<id>/<slug>/job (or /login, /candidate…)
+  const match = /^\/jobs\/(\d+)(?:\/([^/]+))?/.exec(url.pathname);
+  if (!match) return {};
+  const [, id, slug = 'job'] = match;
+  const pieces: Pieces = { key: `icims:${url.hostname}/${id}`.toLowerCase(), url: `${url.origin}/jobs/${id}/${slug}/job` };
+  let ld = readJsonLd(doc);
+  if (!ld) {
+    // The sign-in and application steps don't carry the posting; its own page does.
+    try {
+      const response = await fetcher(`${url.origin}/jobs/${id}/${slug}/job?in_iframe=1`);
+      if (response.ok) ld = readJsonLd(new DOMParser().parseFromString(await response.text(), 'text/html'));
+    } catch {
+      // Carry on with the page.
+    }
+  }
+  if (ld) Object.assign(pieces, { title: ld.title, company: ld.company, location: ld.location, blocks: ld.blocks });
+  return pieces;
+}
+
+/** Company and posting from a SmartRecruiters posting page or one-click application. */
+export function smartRecruitersIds(url: URL): { company: string; posting: string } | null {
+  const oneClick = /^\/oneclick-ui\/company\/([^/]+)\/publication\/([0-9a-f-]{36})/i.exec(url.pathname);
+  if (oneClick) return { company: oneClick[1]!, posting: oneClick[2]!.toLowerCase() };
+  const posting = /^\/([^/]+)\/(\d{6,})(?:-|\/|$)/.exec(url.pathname);
+  return posting && posting[1] !== 'oneclick-ui' ? { company: posting[1]!, posting: posting[2]! } : null;
+}
+
+async function smartRecruiters(doc: Document, url: URL, fetcher: Fetcher): Promise<Pieces> {
+  const ids = smartRecruitersIds(url);
+  if (!ids) return {};
+  // A posting has a number and a publication id; keys use the publication id,
+  // which the posting page links to and the application page is named by.
+  const publication = /\/publication\/([0-9a-f-]{36})/i.exec(doc.querySelector('a[href*="/oneclick-ui/company/"]')?.getAttribute('href') ?? '')?.[1];
+  const pieces: Pieces = { key: `smartrecruiters:${ids.company}/${publication ?? ids.posting}`.toLowerCase() };
+  try {
+    // SmartRecruiters' public posting API, open to any site.
+    const response = await fetcher(`https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(ids.company)}/postings/${encodeURIComponent(ids.posting)}`);
+    if (response.ok) {
+      type Section = { title?: string; text?: string };
+      const data = (await response.json()) as {
+        uuid?: string;
+        name?: string;
+        postingUrl?: string;
+        company?: { name?: string };
+        location?: { fullLocation?: string; city?: string; region?: string; country?: string; remote?: boolean; hybrid?: boolean };
+        jobAd?: { sections?: Partial<Record<'companyDescription' | 'jobDescription' | 'qualifications' | 'additionalInformation', Section>> };
+      };
+      if (data.uuid) pieces.key = `smartrecruiters:${ids.company}/${data.uuid}`.toLowerCase();
+      pieces.title = clean(data.name);
+      pieces.company = clean(data.company?.name);
+      const loc = data.location;
+      const where = clean(loc?.fullLocation) || [loc?.city, loc?.region].map(clean).filter(Boolean).join(', ');
+      pieces.location = loc?.remote ? `${where} (Remote)` : loc?.hybrid ? `${where} (Hybrid)` : where;
+      const sections = data.jobAd?.sections ?? {};
+      const html = (['companyDescription', 'jobDescription', 'qualifications', 'additionalInformation'] as const)
+        .map((name) => sections[name])
+        .filter((section): section is Section => !!section?.text)
+        .map((section) => `${section.title ? `<h2>${section.title}</h2>` : ''}${section.text}`)
+        .join('');
+      pieces.blocks = html ? htmlToBlocks(html) : [];
+      if (data.postingUrl) pieces.url = data.postingUrl;
+    }
+  } catch {
+    // The posting page's own microdata fills in below.
+  }
+  return pieces;
+}
+
+/** Account and job from a Workable address: apply.workable.com/<account>/j/<shortcode>/… */
+export function workableIds(url: URL): { account: string; shortcode: string } | null {
+  const match = /^\/([^/]+)\/j\/([A-Za-z0-9]+)/.exec(url.pathname);
+  return match ? { account: match[1]!, shortcode: match[2]!.toUpperCase() } : null;
+}
+
+async function workable(doc: Document, url: URL, fetcher: Fetcher): Promise<Pieces> {
+  const ids = workableIds(url);
+  if (!ids) return {};
+  const pieces: Pieces = { key: `workable:${ids.account}/${ids.shortcode}`.toLowerCase(), url: `${url.origin}/${ids.account}/j/${ids.shortcode}/` };
+  try {
+    // The job data Workable's own apply pages load.
+    const response = await fetcher(`${url.origin}/api/v2/accounts/${encodeURIComponent(ids.account)}/jobs/${encodeURIComponent(ids.shortcode)}`);
+    if (response.ok) {
+      type Place = { city?: string; region?: string; country?: string };
+      const data = (await response.json()) as {
+        title?: string;
+        description?: string;
+        requirements?: string;
+        benefits?: string;
+        remote?: boolean;
+        workplace?: string;
+        location?: Place;
+        locations?: Place[];
+      };
+      pieces.title = clean(data.title);
+      const places = (data.locations?.length ? data.locations : data.location ? [data.location] : [])
+        .map((p) => [p.city, p.region, p.country].map(clean).filter(Boolean).join(', '))
+        .filter(Boolean);
+      const where = [...new Set(places)].join(' · ');
+      pieces.location = data.remote || data.workplace === 'remote' ? (where ? `${where} (Remote)` : 'Remote') : where;
+      const html = [
+        data.description ?? '',
+        data.requirements ? `<h2>Requirements</h2>${data.requirements}` : '',
+        data.benefits ? `<h2>Benefits</h2>${data.benefits}` : '',
+      ].join('');
+      pieces.blocks = html ? htmlToBlocks(html) : [];
+    }
+  } catch {
+    // Fall back to the page.
+  }
+  // "Software Developer - Acme Robotics"
+  const titled = / [-–|] ([^-–|]+)$/.exec(clean(doc.title))?.[1];
+  pieces.company = clean(meta(doc, 'og:site_name') || titled) || companyFromHost(`${ids.account}.example`);
+  return pieces;
 }
 
 /** Countries named in a location, as ISO codes. Ambiguous wordings are ignored. */
@@ -288,6 +502,22 @@ export function postingKey(site: SiteId, url: URL): string {
   }
   const uuid = /^\/([^/]+)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(url.pathname);
   if ((site === 'lever' || site === 'ashby') && uuid) return `${site}:${uuid[1]!.toLowerCase()}/${uuid[2]!.toLowerCase()}`;
+  if (site === 'workday') {
+    const ids = workdayIds(url);
+    if (ids) return `workday:${ids.tenant}/${ids.req}`.toLowerCase();
+  }
+  if (site === 'icims') {
+    const id = /^\/jobs\/(\d+)/.exec(url.pathname)?.[1];
+    if (id) return `icims:${url.hostname}/${id}`.toLowerCase();
+  }
+  if (site === 'smartrecruiters') {
+    const ids = smartRecruitersIds(url);
+    if (ids) return `smartrecruiters:${ids.company}/${ids.posting}`.toLowerCase();
+  }
+  if (site === 'workable') {
+    const ids = workableIds(url);
+    if (ids) return `workable:${ids.account}/${ids.shortcode}`.toLowerCase();
+  }
   const canonical = new URL(canonicalUrl(url));
   return `${site}:${canonical.host}${canonical.pathname}${canonical.search}`;
 }
@@ -301,12 +531,18 @@ export function postingKey(site: SiteId, url: URL): string {
 export async function captureJob(doc: Document, site: SiteId, href: string, fetcher: Fetcher = (u) => fetch(u)): Promise<JobCapture | null> {
   const url = new URL(href);
   let pieces: Pieces;
-  if (site === 'greenhouse') pieces = await greenhouse(doc, url, fetcher);
-  else if (site === 'lever') pieces = await lever(doc, url, fetcher);
-  else pieces = {};
+  const readers: Partial<Record<SiteId, (doc: Document, url: URL, fetcher: Fetcher) => Promise<Pieces>>> = {
+    greenhouse,
+    lever,
+    workday,
+    icims,
+    smartrecruiters: smartRecruiters,
+    workable,
+  };
+  pieces = (await readers[site]?.(doc, url, fetcher)) ?? {};
 
   // Fill the gaps from schema.org data, then from the page itself.
-  const ld = readJsonLd(doc);
+  const ld = readJsonLd(doc) ?? readMicrodata(doc);
   const fallback = generic(doc, url);
   const pick = (key: 'title' | 'company' | 'location') => clean(pieces[key] || ld?.[key] || fallback[key]);
   const title = pick('title');
@@ -320,7 +556,7 @@ export async function captureJob(doc: Document, site: SiteId, href: string, fetc
   if (!title && blocks.length === 0) return null;
 
   return {
-    key: postingKey(site, url),
+    key: pieces.key ?? postingKey(site, url),
     site,
     url: pieces.url ?? ld?.url ?? canonicalUrl(url),
     title,
