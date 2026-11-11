@@ -112,7 +112,9 @@ test.describe('Ashby', () => {
 
 test.describe('A site SmartSubmit has never seen', () => {
   test('is filled from wording alone once the user starts it from the toolbar', async ({ app }) => {
-    await app.seed({ resume: true });
+    // Saved by someone, once: agreements are still never ticked for them.
+    const consent = { id: 'c1', question: 'I agree to the privacy policy', norm: 'i agree to the privacy policy', kind: 'boolean' as const, answer: 'Yes', options: [], host: 'careers.mapleleaf.example', uses: 0, createdAt: 1 };
+    await app.seed({ resume: true, answers: [consent] });
     const page = await app.open(PAGES.generic);
     // Nothing runs here on its own.
     await page.waitForTimeout(1500);
@@ -154,12 +156,18 @@ test.describe('A site SmartSubmit has never seen', () => {
     expect(data.term).toBe('');
     expect(data.sin).toBe('');
     expect(data.agree).toBeUndefined();
+    expect(data.privacy).toBeUndefined();
+    // Spam traps stay empty, however much they look like a website field.
+    expect(data.website).toBe('');
+    expect(data.homepage).toBe('');
+    expect(Object.values(report.groups).flat()).not.toEqual(expect.arrayContaining([expect.stringMatching(/robots|^Website$/)]));
     expect(report.groups['Needs your answer']).toEqual(
       expect.arrayContaining([
         'Are you returning to school after this work term?',
         'How many years of experience do you have with SQL?',
         'Which co-op term are you available for?',
         'Social Insurance Number',
+        'I agree to the privacy policy',
       ]),
     );
     expect(await submitted(page)).toBe(false);

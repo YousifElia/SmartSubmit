@@ -284,6 +284,27 @@ function isCaptchaOrTrap(el: HTMLElement): boolean {
 }
 
 /**
+ * A text box people can't see but scripts can: the usual spam trap. Filling
+ * one marks an application as sent by a bot. Native selects are exempt:
+ * enhanced dropdowns (Select2 and the like) hide the real select the same way
+ * and expect it to be set.
+ */
+function hiddenFromPeople(el: HTMLElement): boolean {
+  const rect = el.getBoundingClientRect();
+  if (rect.width * rect.height < 4) return true;
+  const style = getComputedStyle(el);
+  if (/^rect\(\s*[01]px,?\s*[01]px,?\s*[01]px,?\s*[01]px\s*\)$/.test(style.clip)) return true;
+  if (/^inset\((50|100)%\)$/.test(style.clipPath)) return true;
+  // Pushed off the page to the left or top.
+  const view = el.ownerDocument.defaultView;
+  return rect.right + (view?.scrollX ?? 0) < 0 || rect.bottom + (view?.scrollY ?? 0) < 0;
+}
+
+/** Wording that marks a field as a trap for robots. */
+const TRAP_LABEL =
+  /\b(for|only for) (robots?|bots?|spam ?bots?)\b|\brobots? only\b|\bif you('?re| are) (a )?human\b|\bhumans?,? (should )?(not|do not|don'?t|please leave)\b|\bleave this field (blank|empty)\b|\bdo not (fill|enter|type)( (in|out))? this field\b|\bhoneypot\b/i;
+
+/**
  * Find every question under `root`.
  *
  * The result is in page order. Radio and checkbox inputs that share a name
@@ -307,7 +328,9 @@ export function discoverFields(root: ParentNode, hooks: DiscoveryHooks = {}): Fo
     if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)) {
       if (el.querySelector('input')) return false;
     }
-    return isUsable(el);
+    if (!isUsable(el)) return false;
+    const textLike = el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && el.type !== 'file');
+    return !(textLike && el.getAttribute('role') !== 'combobox' && hiddenFromPeople(el));
   });
 
   interface Draft {
@@ -457,7 +480,7 @@ export function discoverFields(root: ParentNode, hooks: DiscoveryHooks = {}): Fo
     fields.push(field);
   }
   fields.sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
-  return fields;
+  return fields.filter((f) => !TRAP_LABEL.test(f.label));
 }
 
 function commonAncestor(elements: HTMLElement[]): HTMLElement | null {

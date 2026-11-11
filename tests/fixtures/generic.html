@@ -80,6 +80,13 @@
       <div class="row"><div class="q">Why do you want to work at Maple Leaf Analytics?</div><textarea name="why" rows="4"></textarea></div>
       <div class="row"><div class="q">Social Insurance Number</div><input type="text" name="sin" /></div>
       <div class="row"><label><input type="checkbox" name="agree" /> I confirm the information above is accurate</label></div>
+      <div class="row"><label><input type="checkbox" name="privacy" required /> I agree to the privacy policy</label></div>
+      <!-- Spam traps, as real sites hide them: never to be filled. -->
+      <div style="position: relative; height: 0">
+        <label for="hp1" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(1px, 1px, 1px, 1px)">Enter website. This input is for robots only, do not enter if you're human.</label>
+        <input id="hp1" name="website" type="text" style="position: absolute; width: 1px; height: 1px; clip: rect(1px, 1px, 1px, 1px)" />
+      </div>
+      <div class="row" style="position: absolute; left: -9999px"><label for="hp2">Website</label><input type="text" id="hp2" name="homepage" /></div>
       <div class="row">Upload your resume: <input type="file" name="cv_file" /></div>
       <button type="submit">Send application</button>
     </form>

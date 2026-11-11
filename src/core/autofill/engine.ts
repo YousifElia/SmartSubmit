@@ -71,6 +71,13 @@ interface Plan {
 /** Confidence at or above which a profile match is entered without being flagged. */
 const SURE = 0.8;
 
+/**
+ * Agreements, consents and signatures. These are never entered or remembered:
+ * they bind the person to something, so they give them themselves, each time.
+ */
+export const CONSENT =
+  /\b(i (have read|agree|accept|acknowledge|consent|certify|confirm|attest|authori[sz]e|understand)|agree to|consent|acknowledg(e|ement)|attest(ation)?|terms (of (service|use)|and conditions|& conditions)|privacy (policy|notice|statement)|(e-?|electronic )?signature)\b/i;
+
 const KEY_LABELS: Partial<Record<FieldKey, string>> = {
   linkedin: 'LinkedIn link',
   github: 'GitHub link',
@@ -335,6 +342,11 @@ export async function autofill(fields: FormField[], ctx: EngineContext, options:
 async function fillOne(field: FormField, ctx: EngineContext, groups: GroupCounter): Promise<FieldResult> {
   if (!field.el.isConnected) return result(field, { status: 'skipped', note: 'This field is no longer on the page.' });
   if (field.kind === 'file') return fillFile(field, ctx);
+  if (CONSENT.test(field.label)) {
+    return isAnswered(field)
+      ? result(field, { status: 'skipped', value: display(readValue(field)), note: 'Already answered, so left as it is.' })
+      : result(field, { status: 'unknown', note: 'An agreement or consent: SmartSubmit leaves these for you to give.' });
+  }
 
   const planned = plan(field, ctx, groups);
 
@@ -408,7 +420,7 @@ export function collectCandidates(fields: FormField[], results: FieldResult[], a
   const out: Candidate[] = [];
   for (const field of fields) {
     if (field.kind === 'file' || !field.label || !field.el.isConnected) continue;
-    if (SENSITIVE.test(field.label) || field.inputType === 'password') continue;
+    if (SENSITIVE.test(field.label) || CONSENT.test(field.label) || field.inputType === 'password') continue;
 
     const current = readValue(field);
     if (current === null) continue;
