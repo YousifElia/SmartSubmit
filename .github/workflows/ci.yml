@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck, unit tests, builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Build and zip for Chrome and Firefox
+        run: npm run zip:all
+      - name: Mozilla's linter (fails on errors, not on library warnings)
+        run: npm run lint:firefox
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-zips
+          path: .output/*.zip
+          if-no-files-found: error
+
+  e2e:
+    name: End-to-end tests (Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run the end-to-end tests
+        run: npm run test:e2e -- --trace off
