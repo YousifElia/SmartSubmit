@@ -27,10 +27,12 @@ jobs:
         run: npm run zip:all
       - name: Mozilla's linter (fails on errors, not on library warnings)
         run: npm run lint:firefox
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: extension-zips
           path: .output/*.zip
+          # The zips are in a dot-folder, which the action skips by default.
+          include-hidden-files: true
           if-no-files-found: error
 
   e2e:
