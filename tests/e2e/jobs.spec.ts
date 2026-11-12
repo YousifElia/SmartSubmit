@@ -1,8 +1,8 @@
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import type { Job } from '../../src/core/types';
 import { sampleResumeDoc } from '../fixtures/sampleResume';
+import { pdfToText } from '../pdftotext';
 import { expect, PAGES, test, type App } from './harness';
 
 const jobs = (app: App) =>
@@ -65,7 +65,7 @@ test.describe('Jobs', () => {
     expect(download.suggestedFilename()).toBe('Acme_Robotics_Software_Developer_Intern_Posting.pdf');
     const file = await download.path();
     expect(readFileSync(file).subarray(0, 5).toString()).toBe('%PDF-');
-    const text = execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8' });
+    const text = pdfToText(file);
     expect(text).toContain('Software Developer Intern');
     expect(text).toContain('Acme Robotics');
     expect(text).toContain('Build internal tools in TypeScript and React');

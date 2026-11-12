@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +8,7 @@ import { drawable, embedFonts } from '@/core/pdf/layout';
 import { displayLink, renderResumePdf, resumeFileName, sectionOrder } from '@/core/pdf/resumeTemplate';
 import { emptyResumeDoc } from '@/core/defaults';
 import { sampleResumeDoc } from '../fixtures/sampleResume';
+import { pdfToText } from '../pdftotext';
 import { FONTS } from './fonts';
 
 /** Extract a PDF's text the way an applicant tracking system would. */
@@ -16,7 +16,7 @@ function textOf(pdf: Uint8Array): string {
   const dir = mkdtempSync(join(tmpdir(), 'ss-pdf-'));
   const file = join(dir, 'out.pdf');
   writeFileSync(file, pdf);
-  return execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8' });
+  return pdfToText(file);
 }
 
 describe('resume PDF', () => {

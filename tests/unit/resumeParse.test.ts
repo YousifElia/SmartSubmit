@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { renderResumePdf } from '@/core/pdf/resumeTemplate';
 import { extractDates, looksStructured, parseResumeText } from '@/core/resume/heuristics';
 import { sampleResumeDoc } from '../fixtures/sampleResume';
+import { pdfToText } from '../pdftotext';
 import { FONTS } from './fonts';
 
 const PASTED = `
@@ -176,7 +176,7 @@ describe('parseResumeText: round trip through our own PDF', () => {
     const pdf = await renderResumePdf(original, { fonts: FONTS, pageSize: 'letter' });
     const file = join(mkdtempSync(join(tmpdir(), 'ss-rt-')), 'r.pdf');
     writeFileSync(file, pdf);
-    const text = execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8' });
+    const text = pdfToText(file);
     const doc = parseResumeText(text);
 
     expect(doc.basics.name).toBe('Avery Testerson');

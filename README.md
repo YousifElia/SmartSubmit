@@ -117,6 +117,8 @@ npm run test:e2e       # end-to-end tests in Chromium with the built extension (
 npm run lint:firefox   # Mozilla's linter, on the Firefox build
 ```
 
+The tests that check generated PDFs read them with `pdftotext`, a separate program from [Poppler](https://poppler.freedesktop.org): install it with `sudo apt-get install poppler-utils` on Debian or Ubuntu, or `brew install poppler` on macOS.
+
 The end-to-end tests serve replica application forms at the real systems' addresses, so the extension's own site detection is exercised, and they never reach the real sites. Two suites need outside services and are skipped unless configured:
 
 - `tests/e2e/real-model.spec.ts` runs tailoring through a real local model (`SS_REAL_MODEL_PROVIDER`, `SS_REAL_MODEL_URL`, `SS_REAL_MODEL`).
