@@ -32,4 +32,4 @@ SmartSubmit doesn't sell or share your data, show ads, track the sites you visit
 
 ## Contact
 
-Questions or concerns: open an issue at https://github.com/YousifElia/smartsubmit/issues.
+Questions or concerns: open an issue at https://github.com/YousifElia/SmartSubmit/issues.

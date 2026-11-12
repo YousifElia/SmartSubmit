@@ -32,7 +32,7 @@ The panel appears by itself on these sites. Anywhere else, the toolbar button ru
 | SmartRecruiters | `jobs.smartrecruiters.com` | Job capture checked against live postings. The application page blocks automated visits, so the form support is tested on a replica |
 | Workable | `apply.workable.com` | Built from Workable's known page structure and tested on a replica; not yet checked against the live site |
 
-The four systems in the lower rows are the least proven. If something is missed or filled wrongly there, please [open an issue](https://github.com/YousifElia/smartsubmit/issues) with the system's name and the question's wording.
+The four systems in the lower rows are the least proven. If something is missed or filled wrongly there, please [open an issue](https://github.com/YousifElia/SmartSubmit/issues) with the system's name and the question's wording.
 
 ## What it will never do
 
@@ -44,7 +44,7 @@ The four systems in the lower rows are the least proven. If something is missed 
 
 ## Install
 
-Pre-built extensions are attached to each [release](https://github.com/YousifElia/smartsubmit/releases), or build your own (below).
+Pre-built extensions are attached to each [release](https://github.com/YousifElia/SmartSubmit/releases), or build your own (below).
 
 **Chrome, Edge, Brave**
 

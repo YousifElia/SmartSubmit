@@ -15,7 +15,7 @@ import type { Settings } from '@/core/types';
 import { useLive, useSettings } from '../hooks';
 import { Badge, Button, Checkbox, cx, Modal, Notice, Spinner, TextField } from '../kit';
 
-const SELF_HOSTING = 'https://github.com/YousifElia/smartsubmit#sync-server';
+const SELF_HOSTING = 'https://github.com/YousifElia/SmartSubmit#sync-server';
 
 function ago(time: number | null, now = Date.now()): string {
   if (!time) return 'not yet';
