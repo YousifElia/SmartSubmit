@@ -18,6 +18,7 @@ import {
   wrapDataKey,
   WrongPasswordError,
 } from './crypto';
+import { readEmailProof } from './emailProof';
 import { EMPTY_STATE, syncOnce, type LocalStore, type SyncOutcome, type SyncState } from './engine';
 import type { SecretStore } from './keystore';
 import { MIN_PASSWORD } from './policy';
@@ -170,6 +171,47 @@ export function createAccount(deps: AccountDeps) {
     return begin(account, email, (await openVault(vault, wrapKey)).dataKey);
   }
 
+  /**
+   * Sign in with what the person brought back from an email: its code, its
+   * link, or the address of the page the link opened (see emailProof.ts).
+   */
+  async function redeem(input: string, email: string, purpose: 'signup' | 'recovery'): Promise<Account> {
+    const proof = readEmailProof(input);
+    const fits = (type: string) => (purpose === 'recovery' ? type === 'recovery' : type === 'signup' || type === 'email');
+    const otherEmail = new SyncError(
+      'auth',
+      purpose === 'recovery' ? 'That isn’t from the password reset email. Use the newest reset email.' : 'That isn’t from the confirmation email. Use the newest confirmation email.',
+    );
+    let account: Account;
+    switch (proof.kind) {
+      case 'code':
+        account = await backend.verifyCode(email, proof.code, purpose);
+        break;
+      case 'link':
+        if (!fits(proof.type)) throw otherEmail;
+        try {
+          account = await backend.verifyLink(proof.tokenHash, proof.type);
+        } catch (error) {
+          if (!(error instanceof SyncError) || error.kind !== 'expired') throw error;
+          throw new SyncError('expired', 'That link has already been used or has expired. If you opened it, paste the address of the page it opened instead. Otherwise send a new email.');
+        }
+        break;
+      case 'session':
+        if (proof.type && !fits(proof.type)) throw otherEmail;
+        account = await backend.adoptSession(proof.accessToken, proof.refreshToken);
+        break;
+      case 'spent':
+        throw new SyncError('expired', 'The email’s link had already been used or had expired when it was opened. Send a new email and try again.');
+      default:
+        throw new SyncError('auth', 'Paste the link from the email (or enter its code, if it shows one).');
+    }
+    if (normalizeEmail(account.email) !== email) {
+      await backend.signOut();
+      throw new SyncError('auth', 'That link is for a different account than the email entered here.');
+    }
+    return account;
+  }
+
   async function signIn(email: string, password: string): Promise<void> {
     const { authSecret, wrapKey } = await deriveKeys(email, password, iterations);
     const account = await backend.signIn(email, authSecret);
@@ -212,14 +254,30 @@ export function createAccount(deps: AccountDeps) {
       });
     },
 
-    /** Finish a sign-up: with the code from the email, or (empty code) after following its link. */
-    confirm(code: string): Promise<AccountResult> {
+    /**
+     * Finish a sign-up. With nothing given, the person has opened the email's
+     * link; otherwise `proof` is the link, the opened page's address or a code.
+     */
+    confirm(proof: string): Promise<AccountResult> {
       return attempt(async () => {
         const pending = await secrets.get<PendingSignUp>(PENDING);
         if (!pending || pending.server !== server) throw new SyncError('auth', 'Start again: create the account or sign in.');
-        const account = code.trim()
-          ? await backend.verifyCode(pending.email, code, 'signup')
-          : await backend.signIn(pending.email, pending.authSecret);
+        const opened = () => backend.signIn(pending.email, pending.authSecret);
+        let account: Account;
+        if (!proof.trim()) {
+          account = await opened();
+        } else {
+          try {
+            account = await redeem(proof, pending.email, 'signup');
+          } catch (error) {
+            // A link that was opened before being pasted is spent, but opening
+            // it confirmed the address all the same.
+            if (!(error instanceof SyncError) || error.kind !== 'expired') throw error;
+            account = await opened().catch(() => {
+              throw error;
+            });
+          }
+        }
         await setUp(account, pending.email, pending.wrapKey, pending.dataKey);
       });
     },
@@ -297,16 +355,17 @@ export function createAccount(deps: AccountDeps) {
     },
 
     /**
-     * Set a new password with the code from the reset email. If this browser
-     * still holds the account's key, the cloud copy is kept. Otherwise nobody
-     * can decrypt it any more, so it is started again from this browser.
+     * Set a new password with what the reset email carried: its link, the
+     * address of the page the link opened, or a code. If this browser still
+     * holds the account's key, the cloud copy is kept. Otherwise nobody can
+     * decrypt it any more, so it is started again from this browser.
      */
-    completeReset(rawEmail: string, code: string, password: string): Promise<AccountResult> {
+    completeReset(rawEmail: string, proof: string, password: string): Promise<AccountResult> {
       return attempt(async () => {
         const email = normalizeEmail(rawEmail);
         checkEmail(email);
         checkNewPassword(email, password);
-        const account = await backend.verifyCode(email, code, 'recovery');
+        const account = await redeem(proof, email, 'recovery');
         const after = await deriveKeys(email, password, iterations);
         await backend.updatePassword(after.authSecret);
         const vault = await backend.getVault();
@@ -318,7 +377,8 @@ export function createAccount(deps: AccountDeps) {
         }
         const dataKey = newDataKey();
         const row = await vaultRow(dataKey, after.wrapKey);
-        if (!vault || (await backend.createVault(row)) === 'exists') await backend.updateVault(row);
+        // Replace the account's key, or create it if the account never had one.
+        if (vault || (await backend.createVault(row)) === 'exists') await backend.updateVault(row);
         await backend.wipeRecords();
         const files = await backend.listFiles();
         if (files.length > 0) await backend.removeFiles(files);

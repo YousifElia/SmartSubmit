@@ -237,7 +237,7 @@ function CreateAccount() {
 function ResetPassword({ status, initialEmail, onBack }: { status: SyncStatus; initialEmail: string; onBack: () => void }) {
   const [email, setEmail] = useState(initialEmail);
   const [sent, setSent] = useState(false);
-  const [code, setCode] = useState('');
+  const [proof, setProof] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const { busy, error, run } = useRequest();
@@ -250,12 +250,15 @@ function ResetPassword({ status, initialEmail, onBack }: { status: SyncStatus; i
           if ((await run(() => send('auth.requestReset', { email }))).ok) setSent(true);
         }}
       >
-        <p className="text-[13px] leading-relaxed text-slate-600">We’ll email you a code to set a new password.</p>
+        <p className="text-[13px] leading-relaxed text-slate-600">
+          We’ll email you a link to set a new password. When it arrives, <b className="font-medium text-ink">don’t open it</b>: you’ll copy it and
+          paste it here.
+        </p>
         <TextField label="Email" type="email" autoComplete="username" value={email} onChange={setEmail} />
         {error && <Notice tone="red">{error}</Notice>}
         <div className="flex gap-2">
           <Button variant="primary" type="submit" busy={busy} disabled={!email}>
-            Send code
+            Send email
           </Button>
           <Button variant="ghost" onClick={onBack}>
             Back to sign in
@@ -265,10 +268,22 @@ function ResetPassword({ status, initialEmail, onBack }: { status: SyncStatus; i
     );
   }
   return (
-    <Form onSubmit={() => void run(withConsent(() => send('auth.completeReset', { email, code, password })))}>
-      <p className="text-[13px] leading-relaxed text-slate-600">
-        If an account exists for <b className="font-medium text-ink">{email}</b>, a code is on its way. Enter it with your new password.
-      </p>
+    <Form onSubmit={() => void run(withConsent(() => send('auth.completeReset', { email, proof, password })))}>
+      <div className="text-[13px] leading-relaxed text-slate-600">
+        <p>
+          If an account exists for <b className="font-medium text-ink">{email}</b>, an email is on its way.
+        </p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5">
+          <li>
+            In the email, right-click the reset link and choose <b className="font-medium text-ink">Copy link address</b>. Don’t open it: it works
+            only once.
+          </li>
+          <li>Paste it below and choose a new password.</li>
+        </ol>
+        <p className="mt-2 text-xs text-slate-500">
+          Already opened it? Paste the address of the page it opened instead. If the email shows a code, enter the code.
+        </p>
+      </div>
       {keeps ? (
         <Notice tone="green">This browser still holds your account’s key, so your synced data is kept.</Notice>
       ) : (
@@ -277,11 +292,11 @@ function ResetPassword({ status, initialEmail, onBack }: { status: SyncStatus; i
           browser. If you’re still signed in on another browser, reset from there instead to keep everything.
         </Notice>
       )}
-      <TextField label="Code from the email" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={setCode} />
+      <TextField label="Link from the email" placeholder="https://…" autoComplete="off" spellCheck={false} value={proof} onChange={setProof} />
       <PasswordFields label="New password" password={password} setPassword={setPassword} confirm={confirm} setConfirm={setConfirm} />
       {error && <Notice tone="red">{error}</Notice>}
       <div className="flex gap-2">
-        <Button variant="primary" type="submit" busy={busy} disabled={!code.trim() || !validNew(password, confirm)}>
+        <Button variant="primary" type="submit" busy={busy} disabled={!proof.trim() || !validNew(password, confirm)}>
           Set new password
         </Button>
         <Button variant="ghost" onClick={onBack}>
@@ -379,7 +394,7 @@ function SignedOut({
 // ───────────────────────────── Confirming ─────────────────────────────
 
 function Confirming({ status }: { status: SyncStatus }) {
-  const [code, setCode] = useState('');
+  const [proof, setProof] = useState('');
   const { busy, error, run } = useRequest();
   return (
     <div className="max-w-md space-y-4">
@@ -390,14 +405,21 @@ function Confirming({ status }: { status: SyncStatus }) {
         <div className="text-[13px] leading-relaxed text-slate-600">
           <p className="font-semibold text-ink">Confirm your email</p>
           <p>
-            We sent a message to <b className="font-medium text-ink">{status.email}</b>. Open the link in it, then come back and press Continue. If the
-            message shows a code instead, enter it here.
+            We sent a message to <b className="font-medium text-ink">{status.email}</b>. Open the link in it, then come back and press Continue.
           </p>
-          <p className="mt-1 text-xs text-slate-500">The link may open a page that doesn’t load. That’s fine: your email is confirmed.</p>
+          <p className="mt-1 text-xs text-slate-500">The page it opens won’t load. That’s expected: your address is confirmed all the same.</p>
         </div>
       </div>
-      <Form onSubmit={() => void run(() => send('auth.confirm', { code }))}>
-        <TextField label="Code (if the email has one)" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={setCode} />
+      <Form onSubmit={() => void run(() => send('auth.confirm', { proof }))}>
+        <TextField
+          label="Or paste the link here instead of opening it"
+          hint="Right-click the link in the email and choose Copy link address. A code works too, if the email shows one."
+          placeholder="https://…"
+          autoComplete="off"
+          spellCheck={false}
+          value={proof}
+          onChange={setProof}
+        />
         {error && <Notice tone="red">{error}</Notice>}
         <div className="flex gap-2">
           <Button variant="primary" type="submit" busy={busy}>

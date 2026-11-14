@@ -105,7 +105,7 @@ describe('sync account', () => {
 
     const b = await browsers.on('B');
     expect(await b.signUp('sam@example.com', PASSWORD)).toMatchObject({ needsConfirmation: true });
-    browsers.server.confirmByLink('sam@example.com');
+    browsers.server.openLink('sam@example.com');
     expect(await b.confirm('')).toEqual(ok);
     expect((await b.status()).state).toBe('ready');
   });
@@ -274,5 +274,134 @@ describe('sync account', () => {
     const again = await browsers.on('B');
     expect(await again.syncNow()).toBeNull();
     expect(await again.status()).toMatchObject({ state: 'signedOut', error: expect.stringMatching(/no longer exists|signed out/) });
+  });
+
+  // Supabase's built-in emails carry only a link, and their wording can't be
+  // changed without connecting a mail service. These are the ways through.
+  describe('with link-only emails', () => {
+    const NEW = 'harbor violet engine';
+    beforeEach(() => {
+      browsers = new Browsers(fakeServer({ confirmEmail: true }));
+    });
+
+    /** An account with one synced answer, made on browser A. */
+    async function accountOnA() {
+      const a = await browsers.on('A');
+      await db.put('answers', 'a1', answer('a1', 'kept'));
+      await a.signUp(EMAIL, PASSWORD);
+      await a.confirm(browsers.server.outbox.at(-1)!.link);
+      await a.syncNow();
+      return a;
+    }
+
+    it('confirms a sign-up with the link pasted from the email', async () => {
+      const a = await browsers.on('A');
+      await a.signUp(EMAIL, PASSWORD);
+      const { link } = browsers.server.outbox.at(-1)!;
+      expect(await a.confirm(`  <${link.replace(/&/g, '&amp;')}> `)).toEqual(ok);
+      expect((await a.status()).state).toBe('ready');
+    });
+
+    it('confirms when the link was opened first and then pasted', async () => {
+      const a = await browsers.on('A');
+      await a.signUp(EMAIL, PASSWORD);
+      const { link } = browsers.server.outbox.at(-1)!;
+      browsers.server.openLink(EMAIL);
+      expect(await a.confirm(link)).toEqual(ok);
+      expect((await a.status()).state).toBe('ready');
+    });
+
+    it('confirms with the address of the page the link opened', async () => {
+      const a = await browsers.on('A');
+      await a.signUp(EMAIL, PASSWORD);
+      expect(await a.confirm(browsers.server.openLink(EMAIL))).toEqual(ok);
+      expect((await a.status()).state).toBe('ready');
+    });
+
+    it('says so when a pasted link is no good and the address is still unconfirmed', async () => {
+      const a = await browsers.on('A');
+      await a.signUp(EMAIL, PASSWORD);
+      const stale = browsers.server.outbox.at(-1)!.link.replace('hash', 'nope');
+      expect(await a.confirm(stale)).toMatchObject({ ok: false, error: expect.stringMatching(/already been used or has expired/) });
+      expect(await a.confirm('not a link')).toMatchObject({ ok: false, error: expect.stringMatching(/Paste the link/) });
+      expect((await a.status()).state).toBe('confirming');
+    });
+
+    it('resets the password with the pasted link, keeping the cloud copy on a browser that holds the key', async () => {
+      const a = await accountOnA();
+      expect(await a.requestReset(EMAIL)).toEqual(ok);
+      expect(await a.completeReset(EMAIL, browsers.server.outbox.at(-1)!.link, NEW)).toEqual(ok);
+
+      const b = await browsers.on('B');
+      expect(await b.signIn(EMAIL, PASSWORD)).toMatchObject({ ok: false });
+      expect(await b.signIn(EMAIL, NEW)).toEqual(ok);
+      await b.syncNow();
+      expect((await db.get('answers', 'a1'))?.answer).toBe('kept');
+    });
+
+    it('resets the password after the link was opened, with the address of the page it opened', async () => {
+      const a = await accountOnA();
+      await a.requestReset(EMAIL);
+      const { link } = browsers.server.outbox.at(-1)!;
+      const page = browsers.server.openLink(EMAIL);
+      // The link itself is spent now, and the message says what to do instead.
+      expect(await a.completeReset(EMAIL, link, NEW)).toMatchObject({ ok: false, error: expect.stringMatching(/paste the address of the page it opened/) });
+      expect(await a.completeReset(EMAIL, page, NEW)).toEqual(ok);
+      const b = await browsers.on('B');
+      expect(await b.signIn(EMAIL, NEW)).toEqual(ok);
+    });
+
+    it('reports a link that had expired before it was opened', async () => {
+      const a = await accountOnA();
+      await a.requestReset(EMAIL);
+      browsers.server.openLink(EMAIL);
+      const failedPage = browsers.server.openLink(EMAIL);
+      expect(await a.completeReset(EMAIL, failedPage, NEW)).toMatchObject({ ok: false, error: expect.stringMatching(/Send a new email/) });
+      // Nothing changed: the old password still works.
+      const b = await browsers.on('B');
+      expect(await b.signIn(EMAIL, PASSWORD)).toEqual(ok);
+    });
+
+    it('refuses the wrong email’s link, or one for another account', async () => {
+      const a = await accountOnA();
+      // The sign-up email of someone else, pasted into a reset.
+      const c = await browsers.on('C');
+      await c.signUp('sam@example.com', PASSWORD);
+      const signUpLink = browsers.server.outbox.at(-1)!.link;
+      await (await browsers.on('A')).requestReset(EMAIL);
+      expect(await a.completeReset(EMAIL, signUpLink, NEW)).toMatchObject({ ok: false, error: expect.stringMatching(/isn’t from the password reset email/) });
+
+      // A reset link for another account, pasted under this email.
+      await c.confirm(signUpLink);
+      await c.requestReset('sam@example.com');
+      const theirs = browsers.server.outbox.at(-1)!.link;
+      const result = await (await browsers.on('A')).completeReset(EMAIL, theirs, NEW);
+      expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/different account/) });
+      // Neither password changed.
+      const d = await browsers.on('D');
+      expect(await d.signIn(EMAIL, PASSWORD)).toEqual(ok);
+      expect(await d.signIn('sam@example.com', PASSWORD)).toEqual(ok);
+    });
+
+    it('gives an account its key when a reset finds it never had one', async () => {
+      // Confirmed by opening the link, but the browser that signed up was never used again.
+      const a = await browsers.on('A');
+      await a.signUp(EMAIL, PASSWORD);
+      browsers.server.openLink(EMAIL);
+      const userId = browsers.server.users.get(EMAIL)!.id;
+      expect(browsers.server.vaults.has(userId)).toBe(false);
+
+      const b = await browsers.on('B');
+      await db.put('answers', 'b1', answer('b1', 'from B'));
+      await b.requestReset(EMAIL);
+      expect(await b.completeReset(EMAIL, browsers.server.outbox.at(-1)!.link, NEW)).toEqual(ok);
+      expect(browsers.server.vaults.has(userId)).toBe(true);
+      await b.syncNow();
+
+      const c = await browsers.on('C');
+      expect(await c.signIn(EMAIL, NEW)).toEqual(ok);
+      await c.syncNow();
+      expect((await db.get('answers', 'b1'))?.answer).toBe('from B');
+    });
   });
 });

@@ -12,8 +12,9 @@ site_url = "http://127.0.0.1:3000"
 enable_signup = true
 enable_confirmations = true
 
-# Both emails carry a code, because a browser extension can't receive the
-# redirect a link would make. The password reset needs it.
+# Optional. With these templates both emails show a code to type into
+# SmartSubmit. Without them it takes the link from Supabase's default emails
+# instead. A hosted project only accepts templates once it has custom SMTP.
 [auth.email.template.confirmation]
 subject = "Confirm your SmartSubmit sync account"
 content_path = "./supabase/templates/confirmation.html"

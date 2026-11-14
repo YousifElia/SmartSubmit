@@ -19,9 +19,14 @@ export function fakeServer(options: { confirmEmail?: boolean } = {}) {
   const vaults = new Map<string, VaultRow>();
   const records = new Map<string, Map<string, RemoteRecord>>();
   const files = new Map<string, Map<string, Uint8Array>>();
-  const codes = new Map<string, { code: string; type: 'signup' | 'recovery' }>();
-  /** Emails "sent", newest last. */
-  const outbox: { email: string; type: 'signup' | 'recovery'; code: string }[] = [];
+  /** The one-time token each address is waiting to use: as a code, or as the hash in the email's link. */
+  const codes = new Map<string, { code: string; hash: string; type: 'signup' | 'recovery' }>();
+  /** Emails "sent", newest last. Real emails carry the link; a code only if the templates were customised. */
+  const outbox: { email: string; type: 'signup' | 'recovery'; code: string; link: string }[] = [];
+  /** Sign-ins started by opening an email's link in a tab. */
+  const opened = new Map<string, User>();
+  const SITE = 'http://localhost:3000';
+  const EXPIRED = () => new SyncError('expired', 'That code is wrong or has expired. Check it, or send a new one.');
   /** Make the next password change fail, as a server might. */
   const failures: { updatePassword: Error | null } = { updatePassword: null };
 
@@ -32,8 +37,16 @@ export function fakeServer(options: { confirmEmail?: boolean } = {}) {
   };
   const send = (email: string, type: 'signup' | 'recovery') => {
     const code = String(100000 + outbox.length);
-    codes.set(email, { code, type });
-    outbox.push({ email, type, code });
+    const hash = `hash${outbox.length}x${type}`;
+    codes.set(email, { code, hash, type });
+    outbox.push({ email, type, code, link: `https://sync.example/auth/v1/verify?token=${hash}&type=${type}&redirect_to=${SITE}` });
+  };
+  /** Use up the token an address is waiting on, as the server does on any successful verification. */
+  const redeem = (email: string): User | null => {
+    const user = users.get(email);
+    if (!user || !codes.delete(email)) return null;
+    user.confirmed = true;
+    return user;
   };
 
   function addUser(email: string, secret = 'secret', confirmed = true): User {
@@ -75,10 +88,22 @@ export function fakeServer(options: { confirmEmail?: boolean } = {}) {
       },
       async verifyCode(email, code, type) {
         const sent = codes.get(email);
-        const user = users.get(email);
-        if (!user || !sent || sent.code !== code.trim() || sent.type !== type) throw new SyncError('auth', 'That code didn’t work.');
-        codes.delete(email);
-        user.confirmed = true;
+        if (!sent || sent.code !== code.trim() || sent.type !== type) throw EXPIRED();
+        const user = redeem(email);
+        if (!user) throw EXPIRED();
+        return signInAs(user);
+      },
+      async verifyLink(tokenHash, type) {
+        const waiting = [...codes.entries()].find(([, sent]) => sent.hash === tokenHash);
+        // A sign-up link may call itself "signup" or "email".
+        const fits = waiting && (waiting[1].type === 'recovery' ? type === 'recovery' : type === 'signup' || type === 'email');
+        const user = waiting && fits ? redeem(waiting[0]) : null;
+        if (!user) throw EXPIRED();
+        return signInAs(user);
+      },
+      async adoptSession(accessToken, refreshToken) {
+        const user = opened.get(`${accessToken}/${refreshToken}`);
+        if (!user || !users.has(user.email)) throw new SyncError('expired', 'That page’s sign-in has expired. Send a new email and try again.');
         return signInAs(user);
       },
       async requestReset(email) {
@@ -120,7 +145,9 @@ export function fakeServer(options: { confirmEmail?: boolean } = {}) {
         return 'created';
       },
       async updateVault(row) {
-        vaults.set(need(), structuredClone(row));
+        // Like the real table: updating a key that isn't there changes nothing.
+        const id = need();
+        if (vaults.has(id)) vaults.set(id, structuredClone(row));
       },
 
       async push(items) {
@@ -167,10 +194,19 @@ export function fakeServer(options: { confirmEmail?: boolean } = {}) {
     failures,
     recordsOf: (userId: string) => of(records, userId),
     filesOf: (userId: string) => of(files, userId),
-    /** Follow the link in the confirmation email. */
-    confirmByLink(email: string) {
-      const user = users.get(email);
-      if (user) user.confirmed = true;
+    /**
+     * Open the link in an address's newest email, as a person would in a
+     * browser tab. Returns the address of the page that opens: it carries
+     * the sign-in the server started, or says the link was no longer good.
+     */
+    openLink(email: string): string {
+      const type = codes.get(email)?.type;
+      const user = redeem(email);
+      if (!user) return `${SITE}/#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`;
+      const access = `at${opened.size}`;
+      const refresh = `rt${opened.size}`;
+      opened.set(`${access}/${refresh}`, user);
+      return `${SITE}/#access_token=${access}&expires_in=3600&refresh_token=${refresh}&token_type=bearer&type=${type}`;
     },
   };
 }

@@ -144,13 +144,16 @@ export interface Protocol {
   'sync.now': [void, SyncStatus];
   'auth.signUp': [{ email: string; password: string }, AuthResult];
   'auth.signIn': [{ email: string; password: string }, AuthResult];
-  /** Finish a sign-up with the emailed code, or with an empty code after following the emailed link. */
-  'auth.confirm': [{ code: string }, AuthResult];
+  /**
+   * Finish a sign-up. `proof` is what the email carried: its link, the address
+   * of the page the link opened, or a code. Empty once the link has been opened.
+   */
+  'auth.confirm': [{ proof: string }, AuthResult];
   'auth.cancelSignUp': [void, AuthResult];
   'auth.signOut': [void, AuthResult];
   'auth.changePassword': [{ current: string; next: string }, AuthResult];
   'auth.requestReset': [{ email: string }, AuthResult];
-  'auth.completeReset': [{ email: string; code: string; password: string }, AuthResult];
+  'auth.completeReset': [{ email: string; proof: string; password: string }, AuthResult];
   'auth.deleteAccount': [{ password: string }, AuthResult];
 }
 

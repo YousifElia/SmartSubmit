@@ -132,12 +132,12 @@ export const syncHandlers = {
     return status();
   },
   'auth.signUp': async ({ email, password }) => thenSync(await (await need()).signUp(email, password)),
-  'auth.confirm': async ({ code }) => thenSync(await (await need()).confirm(code)),
+  'auth.confirm': async ({ proof }) => thenSync(await (await need()).confirm(proof)),
   'auth.cancelSignUp': async () => (await need()).cancelSignUp(),
   'auth.signIn': async ({ email, password }) => thenSync(await (await need()).signIn(email, password)),
   'auth.signOut': async () => (await need()).signOut(),
   'auth.changePassword': async ({ current: now, next }) => (await need()).changePassword(now, next),
   'auth.requestReset': async ({ email }) => (await need()).requestReset(email),
-  'auth.completeReset': async ({ email, code, password }) => thenSync(await (await need()).completeReset(email, code, password)),
+  'auth.completeReset': async ({ email, proof, password }) => thenSync(await (await need()).completeReset(email, proof, password)),
   'auth.deleteAccount': async ({ password }) => (await need()).deleteAccount(password),
 } satisfies Partial<Handlers>;

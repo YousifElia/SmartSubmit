@@ -9,14 +9,10 @@
  *   SS_SYNC_EMAIL=... SS_SYNC_PASSWORD=... NODE_USE_ENV_PROXY=1 npm run test:live
  */
 import { describe, expect, it } from 'vitest';
-import { browser } from 'wxt/browser';
 import { emptyProfile } from '@/core/defaults';
 import * as db from '@/core/storage/db';
-import { createAccount, type AccountRecord } from '@/core/sync/account';
-import { supabaseBackend, type SyncBackend } from '@/core/sync/backend';
-import { localStore } from '@/core/sync/engine';
-import { memorySecrets } from '@/core/sync/keystore';
 import type { Resume, SavedAnswer } from '@/core/types';
+import { Browsers } from './browsers';
 
 const URL = process.env.SS_SYNC_URL ?? '';
 const KEY = process.env.SS_SYNC_KEY ?? '';
@@ -48,41 +44,8 @@ const resume: Resume = {
   createdAt: 1,
 };
 
-/** Browsers with their own storage, secrets and server session. */
-class Browsers {
-  private saved = new Map<string, Record<string, unknown>>();
-  private made = new Map<string, { account: ReturnType<typeof createAccount>; backend: SyncBackend }>();
-  current = '';
-
-  async on(name: string) {
-    if (this.current !== name) {
-      if (this.current) this.saved.set(this.current, await browser.storage.local.get(null));
-      await browser.storage.local.clear();
-      const snapshot = this.saved.get(name);
-      if (snapshot && Object.keys(snapshot).length > 0) await browser.storage.local.set(snapshot);
-      this.current = name;
-    }
-    let made = this.made.get(name);
-    if (!made) {
-      const secrets = memorySecrets();
-      const backend = supabaseBackend(URL, KEY, secrets);
-      const account = createAccount({
-        server: URL,
-        backend,
-        secrets,
-        store: localStore,
-        load: async () => ((await browser.storage.local.get('a/sync'))['a/sync'] as AccountRecord | undefined) ?? null,
-        save: async (record) => (record ? browser.storage.local.set({ 'a/sync': record }) : browser.storage.local.remove('a/sync')),
-      });
-      made = { account, backend };
-      this.made.set(name, made);
-    }
-    return made;
-  }
-}
-
 describe.skipIf(!URL || !KEY || !EMAIL || !PASSWORD)('sync against a real server', () => {
-  const browsers = new Browsers();
+  const browsers = new Browsers(URL, KEY);
 
   it('signs in to a new account, creates its key and uploads this browser’s data', async () => {
     const { account } = await browsers.on('A');

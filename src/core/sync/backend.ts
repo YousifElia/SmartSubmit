@@ -2,7 +2,7 @@
  * What sync needs from a server, and the Supabase implementation of it.
  * The engine and tests only see the interface.
  */
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type EmailOtpType, type SupabaseClient } from '@supabase/supabase-js';
 import { authStorage, type SecretStore } from './keystore';
 
 export interface RemoteRecord {
@@ -38,7 +38,7 @@ export interface Account {
 
 export class SyncError extends Error {
   constructor(
-    readonly kind: 'auth' | 'unconfirmed' | 'network' | 'server' | 'config' | 'rate',
+    readonly kind: 'auth' | 'unconfirmed' | 'expired' | 'network' | 'server' | 'config' | 'rate',
     message: string,
   ) {
     super(message);
@@ -50,6 +50,10 @@ export interface SyncBackend {
   signIn(email: string, secret: string): Promise<Account>;
   /** Confirm a new account (type 'signup') or a password reset (type 'recovery') with the code from the email. */
   verifyCode(email: string, code: string, type: 'signup' | 'recovery'): Promise<Account>;
+  /** The same, with the one-time token carried by the email's link. `type` is the link's own. */
+  verifyLink(tokenHash: string, type: string): Promise<Account>;
+  /** Take over the sign-in the server started when the email's link was opened in a tab. */
+  adoptSession(accessToken: string, refreshToken: string): Promise<Account>;
   requestReset(email: string): Promise<void>;
   account(): Promise<Account | null>;
   updatePassword(secret: string): Promise<void>;
@@ -93,8 +97,8 @@ function explain(error: { message?: string; status?: number; code?: string } | n
   if (error?.code === 'PGRST301' || error?.status === 401 || /jwt expired|invalid jwt/i.test(message)) {
     return new SyncError('auth', 'You are signed out of sync. Sign in again.');
   }
-  if (error?.code === 'otp_expired' || /token has expired or is invalid/i.test(message)) {
-    return new SyncError('auth', 'That code is wrong or has expired. Check it, or send a new one.');
+  if (error?.code === 'otp_expired' || /(token|link) (has expired or is invalid|is invalid or has expired)/i.test(message)) {
+    return new SyncError('expired', 'That code is wrong or has expired. Check it, or send a new one.');
   }
   if (error?.code === 'same_password') return new SyncError('auth', 'Choose a password different from the current one.');
   if (error?.code === 'weak_password') return new SyncError('auth', 'The sync server says that password is too weak. Try a longer one.');
@@ -108,7 +112,7 @@ function explain(error: { message?: string; status?: number; code?: string } | n
     return new SyncError('config', 'This sync server can’t send email to that address yet. Its owner needs to set up email sending; see the self-hosting guide.');
   }
   if (error?.code === 'over_email_send_rate_limit' || /email rate limit/i.test(message)) {
-    return new SyncError('rate', 'Too many emails for now. Wait a minute, then try again.');
+    return new SyncError('rate', 'The sync server has sent as many emails as it allows for now (Supabase’s built-in email allows two an hour). Try again later.');
   }
   if (error?.status === 429 || /rate limit/i.test(message)) {
     return new SyncError('rate', 'Too many attempts for now. Wait a few minutes and try again.');
@@ -163,6 +167,16 @@ export function supabaseBackend(url: string, key: string, secrets: SecretStore):
       const { data, error } = await client.auth.verifyOtp({ email, token: code.trim(), type });
       if (error) throw explain(error, 'That code didn’t work.');
       return toAccount(data.user);
+    },
+    async verifyLink(tokenHash, type) {
+      const { data, error } = await client.auth.verifyOtp({ token_hash: tokenHash, type: type as EmailOtpType });
+      if (error) throw explain(error, 'That link didn’t work.');
+      return toAccount(data.user);
+    },
+    async adoptSession(accessToken, refreshToken) {
+      const { data, error } = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      if (error) throw new SyncError('expired', 'That page’s sign-in has expired. Send a new email and try again.');
+      return toAccount(data.user ?? data.session?.user);
     },
     async requestReset(email) {
       const { error } = await client.auth.resetPasswordForEmail(email);

@@ -77,8 +77,12 @@ SmartSubmit has no server of its own. Sync runs through a free Supabase project 
 
 1. **Create a project** at [supabase.com](https://supabase.com) (the free plan is enough).
 2. **Create the tables.** In the dashboard's SQL editor, run the files in [`supabase/migrations`](supabase/migrations) in order. With the [Supabase CLI](https://supabase.com/docs/guides/cli) instead: `supabase link --project-ref <your-ref>`, then `supabase db push`.
-3. **Set up the emails.** In the dashboard's Authentication email templates, replace **Confirm signup** with [`supabase/templates/confirmation.html`](supabase/templates/confirmation.html) and **Reset password** with [`supabase/templates/recovery.html`](supabase/templates/recovery.html). Both emails then include a code you can type into SmartSubmit. The password reset needs it, because an extension can't receive the link's redirect. (`supabase config push` applies [`supabase/config.toml`](supabase/config.toml), templates included, if you use the CLI.)
-4. **Email delivery.** Supabase's built-in email sender only delivers to members of your Supabase organization, a few times an hour. That is enough if the server is just for you. If other people will use it, set up custom SMTP in the project's Authentication email settings.
+3. **Emails: nothing to set up for a server that is just for you.** Supabase's built-in email sender works as it is. Its emails carry a link, not a code, and SmartSubmit takes the link:
+   - **New account:** open the link in the confirmation email, come back and press **Continue**. The page the link opens won't load, which is expected. Or paste the link into SmartSubmit instead of opening it.
+   - **Forgotten password:** copy the link from the reset email (right-click it, **Copy link address**) and paste it into SmartSubmit. Don't open it, because it works only once. If you did open it, paste the address of the page it opened instead.
+
+   The built-in sender only delivers to members of your Supabase organization, sends two emails an hour, and doesn't let you change the emails' wording.
+4. **If other people will use the server,** connect a mail service of your own (custom SMTP) in the project's Authentication settings. That lifts both limits and unlocks the email templates. You can then replace **Confirm signup** with [`supabase/templates/confirmation.html`](supabase/templates/confirmation.html) and **Reset password** with [`supabase/templates/recovery.html`](supabase/templates/recovery.html), so the emails show a code to type in. (`supabase config push` applies [`supabase/config.toml`](supabase/config.toml), templates included, if you use the CLI.)
 5. **Connect SmartSubmit.** On the Sync page, enter the project URL and its publishable (anon) key; the dashboard's **Connect** button shows both. They are public by design: your data is protected by your account and by its encryption. To build them into your own copy instead, put them in `.env.production.local` (see [`.env.example`](.env.example)).
 
 Supabase's security advisor flags `public.delete_account()` because it runs with elevated rights. That is intended: it lets a signed-in person delete their own account, and only that.
@@ -123,6 +127,7 @@ The end-to-end tests serve replica application forms at the real systems' addres
 
 - `tests/e2e/real-model.spec.ts` runs tailoring through a real local model (`SS_REAL_MODEL_PROVIDER`, `SS_REAL_MODEL_URL`, `SS_REAL_MODEL`).
 - `tests/live/sync.live.test.ts` (`npm run test:live`) and `tests/e2e/sync.spec.ts` run sync against a real Supabase project. They need a confirmed test account; [`scripts/live-test-account.mjs`](scripts/live-test-account.mjs) prints the sign-in secret its password must be set to. Both tests delete the account when they finish.
+- `tests/live/emailLinks.live.test.ts` (also `npm run test:live`) checks that a sign-up and a password reset can be finished from the links in Supabase's emails, without sending any. [`scripts/live-link-accounts.mjs`](scripts/live-link-accounts.mjs) writes the SQL that creates its test accounts, which the tests delete as they finish.
 
 ## Project layout
 
