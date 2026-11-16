@@ -244,7 +244,7 @@ describe('classify: confidence', () => {
   });
 });
 
-describe('classify: demographic questions worded only in their choices', () => {
+describe('classify: questions worded only in their choices', () => {
   it('reads the U.S. disability form’s “check one of the boxes” question', () => {
     const options = ['Yes, I have a disability, or have had one in the past', 'No, I do not have a disability and have not had one in the past', 'I do not want to answer'];
     expect(keyOf('Please check one of the boxes below:', choice('checkboxes', options))).toBe('disability');
@@ -254,6 +254,12 @@ describe('classify: demographic questions worded only in their choices', () => {
     expect(keyOf('Status', choice('select', ['I am not a protected veteran', 'I identify as one or more of the classifications of protected veteran', 'I do not wish to answer']))).toBe('veteran');
     expect(keyOf('Please select', choice('radio', ['Male', 'Female', 'Decline to self-identify']))).toBe('gender');
     expect(keyOf('Please select', choice('select', ['Hispanic or Latino', 'Not Hispanic or Latino']))).toBe('hispanic');
+  });
+
+  it('recognises a phone’s type labelled just “Type”', () => {
+    expect(keyOf('Type', choice('select', ['', 'Home', 'Mobile', 'Work']))).toBe('phoneType');
+    expect(keyOf('Type', choice('select', ['Cell Phone', 'Home Phone', 'Business Phone']))).toBe('phoneType');
+    expect(keyOf('Type', choice('select', ['Home', 'Work', 'Other']))).toBeNull();
   });
 
   it('leaves ordinary questions alone', () => {

@@ -172,6 +172,11 @@ describe('posting identity', () => {
   });
   it('names a company after its domain as a last resort', () => {
     expect(companyFromHost('careers.mapleleaf.example')).toBe('Mapleleaf');
+    // Application systems' hosts name the employer in the first label.
+    expect(companyFromHost('careers-northwind.icims.com')).toBe('Northwind');
+    expect(companyFromHost('uscareers-acme.icims.com')).toBe('Acme');
+    expect(companyFromHost('nvidia.wd5.myworkdayjobs.com')).toBe('Nvidia');
+    expect(companyFromHost('acme-careers.example.com')).toBe('Example');
     expect(companyFromHost('www.acme.com')).toBe('Acme');
     expect(companyFromHost('jobs.example.co')).toBe('Example');
   });

@@ -370,8 +370,9 @@ function datePart(field: FieldInfo): '' | 'Month' | 'Year' {
 const DATE_KEYS = new Set<FieldKey>(['eduStart', 'eduEnd', 'expStart', 'expEnd']);
 
 /**
- * Demographic questions are sometimes worded only in their choices: the
- * U.S. disability form asks "Please check one of the boxes below".
+ * Some questions are worded only in their choices: the U.S. disability form
+ * asks "Please check one of the boxes below", and a phone's type is often
+ * labelled just "Type".
  */
 function fromOptions(field: FieldInfo): Classification | null {
   if (!CHOICE.includes(field.kind) || field.options.length < 2) return null;
@@ -381,6 +382,10 @@ function fromOptions(field: FieldInfo): Classification | null {
   if (count(/\bveterans?\b/) >= 2) return { key: 'veteran', confidence: 0.85 };
   if (count(/^(male|man)$/) >= 1 && count(/^(female|woman)$/) >= 1) return { key: 'gender', confidence: 0.85 };
   if (count(/\bhispanic or latin[oax]\b/) >= 2) return { key: 'hispanic', confidence: 0.8 };
+  // A bare "Type" beside a phone number: its choices say what it is.
+  if (options.length <= 8 && count(/^(mobile|cell|cellular)( phone)?$/) >= 1 && count(/^(home|work|office|business)( phone)?$/) >= 1) {
+    return { key: 'phoneType', confidence: 0.8 };
+  }
   return null;
 }
 

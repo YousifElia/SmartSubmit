@@ -12,16 +12,31 @@ import type { SiteAdapter } from './types';
 
 const CONTENT_FRAME = 'icims_content_iframe';
 
+/** Questions a person can see and answer under a node (inputs, dropdowns, text areas). */
+function visibleControls(root: ParentNode): number {
+  let count = 0;
+  for (const el of root.querySelectorAll<HTMLElement>('input, select, textarea')) {
+    if (el instanceof HTMLInputElement && /^(hidden|submit|button|reset|image)$/.test(el.type)) continue;
+    if (el.getClientRects().length > 0) count++;
+  }
+  return count;
+}
+
 export const icims: SiteAdapter = {
   id: 'icims',
 
   formRoot(doc) {
     // The wrapper page holds no form of its own.
     if (doc.querySelector(`iframe#${CONTENT_FRAME}`)) return null;
-    const wrapper = doc.querySelector('.iCIMS_MainWrapper') ?? doc.body;
-    const forms = [...wrapper.querySelectorAll('form')].filter((form) => form.querySelector('input:not([type="hidden"]), select, textarea'));
-    // The application form, or the sign-in step's email form.
-    return forms.find((form) => form.matches('.iCIMS_Forms, #icims_application_form, [id*="application" i]')) ?? forms[0] ?? null;
+    // Pages can also hold a job search form, and the questions aren't always
+    // inside a <form> at all. Take the form holding most of the page's
+    // questions, or the whole page when no form holds even half of them.
+    const total = visibleControls(doc.body);
+    if (total === 0) return null;
+    const best = [...doc.querySelectorAll('form')]
+      .map((form) => ({ form, count: visibleControls(form) }))
+      .sort((a, b) => b.count - a.count)[0];
+    return best && best.count * 2 >= total ? best.form : doc.body;
   },
 
   contentFrame(win, doc) {

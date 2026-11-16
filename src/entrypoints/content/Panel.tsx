@@ -259,7 +259,14 @@ function Body({ state, controller }: { state: PanelState; controller: Controller
         </p>
       ) : null}
 
-      {summary && state.phase === 'done' ? (
+      {state.phase === 'done' && state.results.length === 0 && !state.error ? (
+        <p className="error">
+          SmartSubmit didn’t find any questions it can fill on this page. If you can see a form here, it’s laid out in a way SmartSubmit doesn’t
+          read yet: please report the site.
+        </p>
+      ) : null}
+
+      {summary && state.phase === 'done' && state.results.length > 0 ? (
         <>
           <div className="stats">
             <div className="stat green">

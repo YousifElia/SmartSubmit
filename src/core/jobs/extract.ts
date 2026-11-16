@@ -476,7 +476,12 @@ function generic(doc: Document, url: URL): Pieces {
 /** "careers.mapleleaf.example" → "Mapleleaf". */
 export function companyFromHost(hostname: string): string {
   const labels = hostname.toLowerCase().split('.').filter(Boolean);
-  const meaningful = labels.slice(0, -1).filter((l) => !/^(www|careers?|jobs?|apply|talent|work|join|hire|hiring|recruiting|boards?)$/.test(l));
+  const meaningful = labels
+    .slice(0, -1)
+    // "careers-acme" on iCIMS, "acme-careers" elsewhere.
+    .map((l) => l.replace(/^(us|ca|uk|global)?-?(careers?|jobs?|apply|hiring)-|-(careers?|jobs?)$/g, ''))
+    // Application systems' own names and server labels say nothing about the employer.
+    .filter((l) => l && !/^(www|careers?|jobs?|apply|talent|work|join|hire|hiring|recruiting|boards?|icims|myworkdayjobs|myworkdaysite|wd\d+|greenhouse|lever|ashbyhq|smartrecruiters|workable)$/.test(l));
   const name = meaningful[meaningful.length - 1] ?? labels[0] ?? '';
   return name.charAt(0).toUpperCase() + name.slice(1);
 }

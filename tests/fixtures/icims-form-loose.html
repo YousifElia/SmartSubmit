@@ -1,0 +1,41 @@
+<!doctype html>
+<!--
+  An iCIMS application step laid out the harder way: a job search form at the
+  top of the page, and the application's questions in plain containers
+  outside any <form>, sent by a script. Invented content.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Candidate Profile | Careers at Northwind Systems</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 0 16px; }
+      .iCIMS_TableRow { margin: 14px 0; }
+      .iCIMS_TableLabel { display: block; font-weight: bold; margin-bottom: 4px; }
+      input.form-control, select.form-control { width: 100%; max-width: 420px; padding: 6px; box-sizing: border-box; }
+      .search { background: #eee; padding: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="iCIMS_MainWrapper">
+      <form class="search" id="jobSearch" action="#">
+        <label for="searchKeyword">Search jobs</label> <input id="searchKeyword" name="searchKeyword" type="text" />
+        <label for="searchLocation">Location</label> <input id="searchLocation" name="searchLocation" type="text" />
+        <button type="submit">Search</button>
+      </form>
+      <h1 class="iCIMS_Header">Software Developer Co-op</h1>
+    </div>
+    <div id="iCIMS_ApplicationSteps">
+      <h2>Contact Information</h2>
+      <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_PersonProfileFields.FirstName">First Name <span>*</span></label><input type="text" class="form-control" id="-1_PersonProfileFields.FirstName" /></div>
+      <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_PersonProfileFields.LastName">Last Name <span>*</span></label><input type="text" class="form-control" id="-1_PersonProfileFields.LastName" /></div>
+      <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_PersonProfileFields.Email">Email <span>*</span></label><input type="email" class="form-control" id="-1_PersonProfileFields.Email" /></div>
+      <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_PhoneType">Type</label>
+        <select class="form-control" id="-1_PhoneType"><option value=""></option><option>Home</option><option>Mobile</option><option>Work</option></select></div>
+      <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_Phone">Phone <span>*</span></label><input type="tel" class="form-control" id="-1_Phone" /></div>
+      <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_City">City</label><input type="text" class="form-control" id="-1_City" /></div>
+      <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_Resume">Resume/CV <span>*</span></label><input type="file" id="-1_Resume" /></div>
+      <button type="button" id="next">Next</button>
+    </div>
+  </body>
+</html>

@@ -76,6 +76,20 @@ function text(node: Node | null | undefined): string {
   return (node?.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
+const SEARCH_NAME = /search|keyword/i;
+
+/**
+ * Inside the site's own search box, rather than the application: a search
+ * landmark, or a separate form named for searching.
+ */
+function inSiteSearch(el: Element, root: ParentNode): boolean {
+  const box = el.closest('[role="search"], form');
+  if (!box || box === root || !root.contains(box)) return false;
+  if (box.getAttribute('role') === 'search') return true;
+  const names = [box.id, box.getAttribute('name'), box.getAttribute('class'), box.getAttribute('action')];
+  return names.some((name) => !!name && SEARCH_NAME.test(name));
+}
+
 /** Rendered and able to hold a user's answer. Hidden file inputs count, since they sit behind upload buttons. */
 function isUsable(el: HTMLElement): boolean {
   if ((el as HTMLInputElement).disabled) return false;
@@ -354,6 +368,7 @@ export function discoverFields(root: ParentNode, hooks: DiscoveryHooks = {}): Fo
     if (claimed.has(el) || [...claimed].some((c) => c.contains(el))) return false;
     if (hooks.ignore?.(el)) return false;
     if (isCaptchaOrTrap(el)) return false;
+    if (inSiteSearch(el, root)) return false;
     if (el instanceof HTMLInputElement) {
       if (SKIP_INPUT_TYPES.has(el.type)) return false;
       if (el.type === 'radio' || el.type === 'checkbox') return isUsableChoice(el);

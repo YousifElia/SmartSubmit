@@ -128,7 +128,11 @@ export class Controller {
 
   scan(): FormField[] {
     const root = this.formRoot();
-    this.fields = root ? discoverFields(root, this.adapter) : [];
+    let fields = root ? discoverFields(root, this.adapter) : [];
+    // A site can change its markup: if the part of the page the adapter
+    // pointed at holds no questions, look at the whole page.
+    if (root && fields.length === 0 && root !== this.doc.body) fields = discoverFields(this.doc.body, this.adapter);
+    this.fields = fields;
     this.set({ fieldCount: this.fields.length });
     return this.fields;
   }

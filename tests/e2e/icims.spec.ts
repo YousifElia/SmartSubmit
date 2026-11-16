@@ -94,4 +94,23 @@ test.describe('iCIMS', () => {
     expect(await frame.locator('textarea[name="h-captcha-response"]').inputValue()).toBe('');
     expect(await frame.evaluate(() => (window as unknown as { __submitted: boolean }).__submitted)).toBe(false);
   });
+
+  test('finds the questions when they sit outside any form, below a job search form', async ({ app }) => {
+    await app.seed({ resume: true });
+    // iCIMS pages also open on their own, without the wrapper page.
+    const page = await app.open(`${PAGES.icims}?in_iframe=1&layout=loose`);
+    const report = await app.autofill(page);
+    const value = (id: string) => page.locator(`[id="${id}"]`).inputValue();
+    expect(await value('-1_PersonProfileFields.FirstName')).toBe('Avery');
+    expect(await value('-1_PersonProfileFields.LastName')).toBe('Testerson');
+    expect(await value('-1_PersonProfileFields.Email')).toBe(sampleProfile().email);
+    expect(await value('-1_PhoneType')).toBe('Mobile');
+    expect(await value('-1_Phone')).toMatch(/519\D*555\D*0142/);
+    expect(await value('-1_City')).toBe('Windsor');
+    expect(await page.locator('[id="-1_Resume"]').evaluate((el: HTMLInputElement) => el.files?.[0]?.name)).toBe('Avery_Testerson_Resume.pdf');
+    // The job search box is not an application question.
+    expect(await page.locator('#searchKeyword').inputValue()).toBe('');
+    expect(await page.locator('#searchLocation').inputValue()).toBe('');
+    expect(report.filled).toBeGreaterThanOrEqual(7);
+  });
 });

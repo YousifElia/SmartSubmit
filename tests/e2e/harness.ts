@@ -49,7 +49,7 @@ function pageFor(url: URL): string | undefined {
     if (url.searchParams.get('in_iframe') !== '1') return 'icims.html';
     if (url.pathname.endsWith('/login')) return 'icims-login.html';
     if (url.pathname.endsWith('/job')) return 'icims-job.html';
-    return 'icims-form.html';
+    return url.searchParams.get('layout') === 'loose' ? 'icims-form-loose.html' : 'icims-form.html';
   }
   if (url.hostname === 'jobs.smartrecruiters.com' && url.pathname.startsWith('/oneclick-ui/')) return 'smartrecruiters.html';
   // SmartRecruiters' public posting API, open to any site.
