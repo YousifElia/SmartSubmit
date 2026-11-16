@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { htmlToBlocks } from '@/core/jobs/html';
-import { jobKeywords, matchResume, resumeText } from '@/core/jobs/keywords';
+import { jobKeywords, matchResume, resumeText, spellings, wordingToMatch } from '@/core/jobs/keywords';
 import { sampleResumeDoc } from '../fixtures/sampleResume';
 
 const JOB = htmlToBlocks(`
@@ -115,5 +115,38 @@ describe('matchResume', () => {
 
   it('scores zero when the job lists no keywords', () => {
     expect(matchResume([], 'anything').score).toBe(0);
+  });
+});
+
+describe('wordingToMatch', () => {
+  const posting = 'Requirements: PostgreSQL, Kubernetes, JavaScript and React. Nice to have: Node.js.';
+  const keywords = jobKeywords(htmlToBlocks(`<h3>Requirements</h3><p>${posting}</p>`));
+
+  it('finds how each text spells a skill', () => {
+    expect(spellings('PostgreSQL', 'We use Postgres and postgres. Also PostgreSQL.')).toEqual(['Postgres', 'PostgreSQL']);
+    expect(spellings('Kubernetes', 'Deployed on k8s')).toEqual(['k8s']);
+    expect(spellings('Rust', 'Python only')).toEqual([]);
+  });
+
+  it('lists the skills a resume names differently from the posting, in the posting’s words', () => {
+    const resume = 'Skills: Postgres, K8s, JS, React, NodeJS';
+    const report = matchResume(keywords, resume);
+    expect(report.missing).toEqual([]);
+    expect(wordingToMatch(report.matched, posting, resume)).toEqual(
+      expect.arrayContaining([
+        { posting: 'PostgreSQL', resume: 'Postgres' },
+        { posting: 'Kubernetes', resume: 'K8s' },
+        { posting: 'JavaScript', resume: 'JS' },
+        { posting: 'Node.js', resume: 'NodeJS' },
+      ]),
+    );
+    // Spelled the same already, apart from capitals: nothing to change.
+    expect(wordingToMatch(report.matched, posting, resume).map((w) => w.posting)).not.toContain('React');
+    expect(wordingToMatch(report.matched, posting, 'Skills: react')).toEqual([]);
+  });
+
+  it('leaves a skill alone when the resume already uses the posting’s word somewhere', () => {
+    const resume = 'Built a PostgreSQL schema; tuned Postgres queries';
+    expect(wordingToMatch(matchResume(keywords, resume).matched, posting, resume)).toEqual([]);
   });
 });

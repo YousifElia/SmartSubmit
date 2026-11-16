@@ -45,12 +45,13 @@ export function Handoff({ request, onReply, replyLabel = 'Use this reply' }: { r
             </details>
           </div>
         </Step>
-        <Step n={2} title="Paste it into a new chat on claude.ai and send it">
+        <Step n={2} title="Paste it into a new chat with Claude and send it">
           <Button icon={<ExternalLink size={15} />} onClick={() => window.open(CLAUDE_URL, '_blank', 'noopener')}>
             Open claude.ai
           </Button>
           <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            This shares your resume and the job posting with Claude through your own account, under your claude.ai plan.
+            If you use Claude in Chrome, you can paste it into its side panel instead. Either way this shares your resume and the job posting with
+            Claude through your own account, under your Claude plan.
           </p>
         </Step>
         <Step n={3} title="Copy Claude’s whole reply and paste it here">

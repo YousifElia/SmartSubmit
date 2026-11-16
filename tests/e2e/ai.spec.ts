@@ -80,14 +80,18 @@ test.describe('AI', () => {
     await page.bringToFront();
     await page.evaluate((id) => (window.location.hash = `#/tailor/${id}`), job.id);
     await expect(page.getByText('Automatic, with qwen2.5:7b.')).toBeVisible();
+    // The posting's keywords are shown before anything runs.
+    const keywords = page.getByTestId('keywords');
+    for (const name of ['TypeScript', 'React', 'Python']) await expect(keywords.getByText(name, { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Tailor resume' }).click();
     await expect(page.getByRole('heading', { name: 'Review the tailored resume' })).toBeVisible();
 
-    // The request asked for schema-constrained JSON and carried the job and resume.
+    // The request asked for schema-constrained JSON and carried the job, the resume and the keywords.
     const chat = ollama.requests.find((r) => r.path === '/api/chat')!.body as { format: { type: string }; messages: { content: string }[] };
     expect(chat.format.type).toBe('object');
     expect(chat.messages[1]!.content).toContain('Title: Software Developer Intern');
     expect(chat.messages[1]!.content).toContain('Example Robotics');
+    expect(chat.messages[1]!.content).toMatch(/Already in the resume: (TypeScript|React|Python), (TypeScript|React|Python), (TypeScript|React|Python)\n/);
 
     // What the guard did is shown, and the result is honest.
     const notes = page.getByTestId('guard-notes');

@@ -75,6 +75,20 @@ describe('prompts', () => {
     expect(prompt.user).toContain('<job_posting>\nTitle: Backend Intern');
     expect(prompt.user).toContain('Asked for but not in the resume (do not add these unless the resume already supports them): Go');
     expect(prompt.user).toContain(JSON.stringify(original));
+    // No renamed keywords, no line for them.
+    expect(prompt.user).not.toContain('under another name');
+  });
+
+  it('tailoring asks for the posting’s keywords, in the posting’s words', () => {
+    const prompt = tailorPrompt({
+      resume: original,
+      job,
+      strength: 'balanced',
+      keywords: { matched: ['Python', 'PostgreSQL'], missing: ['Go'], wording: [{ posting: 'PostgreSQL', resume: 'Postgres' }] },
+    });
+    expect(prompt.system).toContain('Work in the posting\'s keywords that the resume already shows');
+    expect(prompt.system).toContain('use the posting\'s name');
+    expect(prompt.user).toContain('Already in the resume: Python, PostgreSQL\nIn the resume under another name (use the posting\'s name): PostgreSQL (the resume says "Postgres")\nAsked for but not in the resume');
   });
 
   it('truncates very long descriptions', () => {

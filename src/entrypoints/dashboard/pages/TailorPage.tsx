@@ -10,7 +10,7 @@ import { handoffText, tailorPrompt } from '@/core/ai/prompts';
 import { AiError, clientFor } from '@/core/ai/providers';
 import { runTailor } from '@/core/ai/run';
 import { readTailorReply, type TailorReply } from '@/core/ai/schema';
-import { jobKeywords, matchResume, resumeText, type MatchReport } from '@/core/jobs/keywords';
+import { jobKeywords, matchResume, resumeText, wordingToMatch, type Keyword, type MatchReport } from '@/core/jobs/keywords';
 import { send, type TailorStrength } from '@/core/messages';
 import { looksStructured, parseResumeText } from '@/core/resume/heuristics';
 import * as db from '@/core/storage/db';
@@ -41,19 +41,82 @@ function docOf(resume: Resume): ResumeDoc {
   return resume.doc ?? parseResumeText(resume.text);
 }
 
+type Wording = { posting: string; resume: string }[];
+
+function Chips({ keywords, tone }: { keywords: Keyword[]; tone: 'green' | 'neutral' | 'amber' }) {
+  return (
+    <span className="inline-flex flex-wrap gap-1 align-middle">
+      {keywords.map((k) => (
+        <Badge key={k.name} tone={tone}>
+          {k.name}
+        </Badge>
+      ))}
+    </span>
+  );
+}
+
+/** The posting's keywords, as tailoring will use them. */
+function KeywordSummary({ report, wording }: { report: MatchReport; wording: Wording }) {
+  if (report.matched.length + report.missing.length === 0) {
+    return <p className="mt-4 text-xs text-slate-500">SmartSubmit found no skills or tools named in this posting, so tailoring works from its wording alone.</p>;
+  }
+  return (
+    <div className="mt-4 space-y-2 text-[13px]" data-testid="keywords">
+      {report.matched.length > 0 && (
+        <p className="flex flex-wrap items-center gap-1.5">
+          <span className="font-medium text-slate-700">In your resume:</span>
+          <Chips keywords={report.matched} tone="green" />
+        </p>
+      )}
+      {report.missing.length > 0 && (
+        <p className="flex flex-wrap items-center gap-1.5">
+          <span className="font-medium text-slate-700">Not in your resume:</span>
+          <Chips keywords={report.missing} tone="neutral" />
+        </p>
+      )}
+      {wording.length > 0 && (
+        <p className="text-xs text-slate-500" data-testid="wording">
+          Named differently: {wording.map((w) => `${w.resume} → ${w.posting}`).join(', ')}.
+        </p>
+      )}
+      <p className="text-xs leading-relaxed text-slate-500">
+        Tailoring puts what shows these keywords first and words it as the posting does. Ones your resume doesn’t show are never added: they’re listed for you to act on.
+      </p>
+    </div>
+  );
+}
+
 function ScoreChange({ before, after }: { before: MatchReport; after: MatchReport }) {
   const delta = after.score - before.score;
+  const had = new Set(before.matched.map((k) => k.name));
+  const has = new Set(after.matched.map((k) => k.name));
+  const gained = after.matched.filter((k) => !had.has(k.name));
+  const lost = before.matched.filter((k) => !has.has(k.name));
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="tabular-nums text-slate-500">{before.score}%</span>
-      <ArrowRight size={15} className="text-slate-400" />
-      <span className="text-2xl font-semibold tabular-nums text-ink" data-testid="tailored-score">
-        {after.score}%
-      </span>
-      <Badge tone={delta > 0 ? 'green' : delta < 0 ? 'red' : 'neutral'}>
-        {delta > 0 ? `+${delta}` : delta} points
-      </Badge>
-      <span className="text-xs text-slate-500">keyword match with the posting</span>
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 text-sm">
+        <span className="tabular-nums text-slate-500">{before.score}%</span>
+        <ArrowRight size={15} className="text-slate-400" />
+        <span className="text-2xl font-semibold tabular-nums text-ink" data-testid="tailored-score">
+          {after.score}%
+        </span>
+        <Badge tone={delta > 0 ? 'green' : delta < 0 ? 'red' : 'neutral'}>
+          {delta > 0 ? `+${delta}` : delta} points
+        </Badge>
+        <span className="text-xs text-slate-500">keyword match with the posting</span>
+      </div>
+      {gained.length > 0 && (
+        <p className="flex flex-wrap items-center gap-1.5 text-[13px]" data-testid="keywords-gained">
+          <span className="text-slate-600">Now names:</span>
+          <Chips keywords={gained} tone="green" />
+        </p>
+      )}
+      {lost.length > 0 && (
+        <p className="flex flex-wrap items-center gap-1.5 text-[13px]" data-testid="keywords-lost">
+          <span className="text-slate-600">No longer names (your original did; put them back below if they matter):</span>
+          <Chips keywords={lost} tone="amber" />
+        </p>
+      )}
     </div>
   );
 }
@@ -152,6 +215,7 @@ export function TailorPage({ jobId, navigate }: { jobId?: string; navigate: (rou
   const before = useMemo(() => (original ? matchResume(keywords, originalText) : null), [keywords, original, originalText]);
   const current = edited ?? result?.guard.doc ?? null;
   const after = useMemo(() => (current ? matchResume(keywords, resumeText(current, '')) : null), [keywords, current]);
+  const wording = useMemo(() => (job && before ? wordingToMatch(before.matched, job.description, originalText) : []), [job, before, originalText]);
 
   if (!jobs || !resumeRecords || !tailoredRecords || !settings) return <Spinner className="h-6 w-6 text-slate-400" />;
 
@@ -185,7 +249,7 @@ export function TailorPage({ jobId, navigate }: { jobId?: string; navigate: (rou
         resume: original,
         job: { title: job.title, company: job.company, location: job.location, description: job.description },
         strength,
-        keywords: { matched: before?.matched.map((k) => k.name) ?? [], missing: before?.missing.map((k) => k.name) ?? [] },
+        keywords: { matched: before?.matched.map((k) => k.name) ?? [], missing: before?.missing.map((k) => k.name) ?? [], wording },
       }
     : null;
 
@@ -274,6 +338,7 @@ export function TailorPage({ jobId, navigate }: { jobId?: string; navigate: (rou
                 </div>
               )}
             </div>
+            {before && <KeywordSummary report={before} wording={wording} />}
             {resume && !looksStructured(docOf(resume)) && (
               <div className="mt-4">
                 <Notice tone="amber">
@@ -294,7 +359,7 @@ export function TailorPage({ jobId, navigate }: { jobId?: string; navigate: (rou
                 {(
                   [
                     { value: 'local', icon: <Cpu size={17} />, title: 'Model on this computer', body: localReady ? `Automatic, with ${settings.ai.provider === 'ollama' ? settings.ai.ollamaModel : settings.ai.compatModel}.` : 'Not set up yet.' },
-                    { value: 'claude', icon: <MessageSquareQuote size={17} />, title: 'Claude', body: 'Copy and paste through claude.ai, using your plan.' },
+                    { value: 'claude', icon: <MessageSquareQuote size={17} />, title: 'Claude', body: 'Copy and paste, on claude.ai or in Claude in Chrome, using your plan.' },
                   ] as const
                 ).map((option) => {
                   const disabled = option.value === 'local' && !localReady;

@@ -477,6 +477,43 @@ export function mentions(term: string, text: string): boolean {
   return new RegExp(`${BEFORE}${escape(term.trim())}${AFTER}`, 'i').test(text);
 }
 
+/** How a text writes a skill or term ("Postgres" for PostgreSQL), each spelling once, in the order they appear. */
+export function spellings(term: string, text: string): string[] {
+  const skill = skillFor(term);
+  const patterns = skill ? skill.patterns : [new RegExp(`${BEFORE}${escape(term.trim())}${AFTER}`, 'gi')];
+  const found: { at: number; text: string }[] = [];
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    for (const match of text.matchAll(pattern)) found.push({ at: match.index, text: match[0].trim() });
+  }
+  found.sort((a, b) => a.at - b.at);
+  const seen = new Set<string>();
+  return found.map((f) => f.text).filter((spelling) => {
+    const key = spelling.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Keywords a resume has under another name than the posting uses: the
+ * resume says "Postgres", the posting "PostgreSQL". Using the posting's
+ * name changes no fact, and is what a reader (or a screening system)
+ * searching for that word finds.
+ */
+export function wordingToMatch(keywords: Keyword[], posting: string, resume: string): { posting: string; resume: string }[] {
+  const out: { posting: string; resume: string }[] = [];
+  for (const keyword of keywords) {
+    const wanted = spellings(keyword.name, posting)[0];
+    const used = spellings(keyword.name, resume);
+    if (!wanted || used.length === 0) continue;
+    if (used.some((u) => u.toLowerCase() === wanted.toLowerCase())) continue;
+    out.push({ posting: wanted, resume: used[0]! });
+  }
+  return out;
+}
+
 function resumeHas(keyword: Keyword, text: string): boolean {
   return mentions(keyword.name, text);
 }

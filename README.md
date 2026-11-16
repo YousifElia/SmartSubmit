@@ -11,10 +11,10 @@ Your data stays in your browser. Sync between browsers is optional and end-to-en
 - **Autofill.** On a supported application a small panel appears at the edge of the page. Press **Autofill** and it fills what it knows, attaches your resume, and colour-codes every field: filled, worth checking, or needs your answer. On any other site, click the toolbar button to run it on the current page.
 - **Learning.** When you answer a question SmartSubmit didn't know, the panel offers to remember it. Next time the same question is filled for you; a similar one is filled and flagged for you to check. On forms that run over several steps, answers from earlier steps stay on offer.
 - **Tailoring.** Rewrite a resume for a specific job, with:
-  - **Claude**, by copy and paste: SmartSubmit prepares the prompt and opens claude.ai; you paste the reply back. No API key, no sign-in.
+  - **Claude**, by copy and paste: SmartSubmit prepares the prompt and opens claude.ai (or paste it into Claude in Chrome's side panel); you paste the reply back. No API key, no sign-in.
   - **A local model** through [Ollama](https://ollama.com) or any OpenAI-compatible server (LM Studio, llama.cpp, vLLM, Jan), automatically.
 
-  Either way you review every change before a PDF is built. Tailoring may reorder, rephrase and trim what is in your resume. Anything the job asks for that your resume doesn't show is listed as a gap, never written in; a check removes invented employers, titles, skills and numbers.
+  Tailoring works from the posting's keywords, which you see before it runs: what your resume shows of them comes first, in the posting's words (a resume that says "Postgres" says "PostgreSQL" for a posting that does). Either way you review every change, and which keywords it gained or lost, before a PDF is built. Tailoring may reorder, rephrase and trim what is in your resume. Anything the job asks for that your resume doesn't show is listed as a gap, never written in; a check removes invented employers, titles, skills and numbers.
 - **Job tools.** A keyword match score for each job, a PDF copy of the posting, and an application tracker (saved, started, applied, interviewing, offer, rejected, withdrawn) with CSV export.
 - **Sync.** Optional. Keep Chrome and Firefox in step with an account on your own [Supabase](https://supabase.com) project. Everything is encrypted in the browser first.
 

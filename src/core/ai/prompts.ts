@@ -52,12 +52,16 @@ const STRENGTH: Record<TailorStrength, string> = {
     'Make substantial edits: rewrite bullets and the summary to bring forward what this role needs most, and cut what does not serve it, while staying strictly truthful. Keep at most 4 bullets per role.',
 };
 
-export function tailorPrompt(input: {
-  resume: ResumeDoc;
-  job: JobForPrompt;
-  strength: TailorStrength;
-  keywords: { matched: string[]; missing: string[] };
-}): Prompt {
+export interface TailorKeywords {
+  /** The posting's keywords the resume shows, most important first. */
+  matched: string[];
+  /** The posting's keywords the resume doesn't show. */
+  missing: string[];
+  /** Keywords the resume has under another name than the posting uses. */
+  wording?: { posting: string; resume: string }[];
+}
+
+export function tailorPrompt(input: { resume: ResumeDoc; job: JobForPrompt; strength: TailorStrength; keywords: TailorKeywords }): Prompt {
   const system = `You are an expert resume editor. You help a job seeker tailor their resume to one job posting. You edit; you never invent.
 
 Rules you must follow. Breaking any of them makes the resume dishonest and unusable:
@@ -70,6 +74,8 @@ Rules you must follow. Breaking any of them makes the resume dishonest and unusa
 
 What you may do:
 - Reorder sections, bullets and skills so the most relevant come first.
+- Work in the posting's keywords that the resume already shows (listed under <keywords>): name them the way the posting does, and put the bullets, projects and skills that show them first. Never drop a bullet or skill that shows one of them.
+- Where the resume calls a skill or tool by another name than the posting does, use the posting's name (the <keywords> section lists these). That is the same fact in the posting's words.
 - Rephrase a bullet in the posting's terminology when the original clearly supports it.
 - Shorten or remove bullets, projects and skills that do not help for this job.
 - Write or adjust a one or two sentence summary using only facts from the resume, or leave it empty.
@@ -85,11 +91,13 @@ Reply with JSON only, in this shape:
 "gaps" lists the posting's important requirements that the resume does not show, in a few words each.
 The resume's "order" lists its sections in display order using: summary, education, experience, projects, skills, and extra:<title> for any other section.`;
 
+  const wording = (input.keywords.wording ?? []).map((w) => `${w.posting} (the resume says "${w.resume}")`);
   const user = `${jobSection(input.job)}
 
 <keywords>
+The posting's keywords, most important first.
 Already in the resume: ${input.keywords.matched.join(', ') || 'none found'}
-Asked for but not in the resume (do not add these unless the resume already supports them): ${input.keywords.missing.join(', ') || 'none'}
+${wording.length ? `In the resume under another name (use the posting's name): ${wording.join(', ')}\n` : ''}Asked for but not in the resume (do not add these unless the resume already supports them): ${input.keywords.missing.join(', ') || 'none'}
 </keywords>
 
 <original_resume>
@@ -155,7 +163,7 @@ ${input.resumeText.slice(0, 12_000)}
   return { system, user, reply: 'text' };
 }
 
-/** One message to paste into claude.ai. */
+/** One message to paste into a chat with Claude (on claude.ai, or in Claude in Chrome). */
 export function handoffText(prompt: Prompt): string {
   const ending =
     prompt.reply === 'json'
