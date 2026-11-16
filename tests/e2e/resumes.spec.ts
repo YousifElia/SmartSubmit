@@ -106,6 +106,37 @@ test.describe('Resumes', () => {
     expect(profile.experience).toHaveLength(2);
   });
 
+  test('a LaTeX resume is read for what it prints, and a PDF is built to attach', async ({ app }) => {
+    await app.seed({ profile: emptyProfile() });
+    const page = await openResumes(app);
+    const tex = readFileSync(join(import.meta.dirname, '../fixtures/resume.tex'));
+    await page.getByTestId('resume-file-input').setInputFiles({ name: 'avery_resume.tex', mimeType: 'application/x-tex', buffer: tex });
+
+    const card = page.getByTestId('resume-card');
+    await expect(card).toHaveCount(1);
+    await expect(card).toContainText('avery resume');
+    await expect(card).toContainText('LaTeX');
+    await expect(card).toContainText('2 roles · 1 school · 1 project · 11 skills');
+    await expect(card).toContainText('Attached to applications as a PDF built from its sections. To send the PDF your LaTeX makes instead, upload that PDF.');
+
+    const [stored] = await resumesIn(app);
+    expect(stored).toMatchObject({ source: 'latex', file: null });
+    expect(stored!.text).not.toContain('\\');
+    expect(stored!.doc?.experience[0]).toMatchObject({ title: 'Software Developer Intern', company: 'Northwind Systems', start: 'May 2025', end: 'Aug. 2025' });
+
+    // What gets attached is a real PDF, built from those sections.
+    const built = await app.request<{ name: string; mime: string; base64: string }>('resume.file', { kind: 'resume', id: stored!.id });
+    expect(built.mime).toBe('application/pdf');
+    expect(Buffer.from(built.base64, 'base64').subarray(0, 5).toString()).toBe('%PDF-');
+
+    // LaTeX pasted into the text box is read the same way.
+    await page.getByRole('button', { name: 'Paste text' }).click();
+    await page.getByLabel('Resume text').fill(tex.toString('utf8'));
+    await page.getByRole('button', { name: 'Add resume' }).click();
+    await expect(card).toHaveCount(2);
+    await expect(card.nth(1)).toContainText('2 roles · 1 school · 1 project · 11 skills');
+  });
+
   test('sections can be edited and the PDF follows', async ({ app }) => {
     await app.seed();
     const page = await openResumes(app);

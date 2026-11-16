@@ -7,7 +7,7 @@ Your data stays in your browser. Sync between browsers is optional and end-to-en
 ## What it does
 
 - **Set up once.** On install, a guided setup collects the details applications ask for: name, contact, location, links, education, experience, Canadian and U.S. work authorization, common answers (salary, start date, notice period) and, if you choose, voluntary demographic answers. Every step can be skipped and edited later.
-- **Resumes.** Paste text or upload PDF or Word files, as many as you like, with one marked as the default. Each is split into editable sections, so everything works without any AI.
+- **Resumes.** Paste text or upload PDF, Word or LaTeX (`.tex`) files, as many as you like, with one marked as the default. Each is split into editable sections, so everything works without any AI. A LaTeX resume is read for the text it prints, including the commands it defines for itself and the moderncv and awesome-cv classes; applications then get a PDF built from its sections.
 - **Autofill.** On a supported application a small panel appears at the edge of the page. Press **Autofill** and it fills what it knows, attaches your resume, and colour-codes every field: filled, worth checking, or needs your answer. On any other site, click the toolbar button to run it on the current page.
 - **Learning.** When you answer a question SmartSubmit didn't know, the panel offers to remember it. Next time the same question is filled for you; a similar one is filled and flagged for you to check. On forms that run over several steps, answers from earlier steps stay on offer.
 - **Tailoring.** Rewrite a resume for a specific job, with:
@@ -138,7 +138,7 @@ src/
   core/
     autofill/    field discovery, classification, answers, filling, site adapters
     jobs/        posting capture, keyword matching, CSV
-    resume/      PDF and Word parsing, section detection
+    resume/      PDF, Word and LaTeX reading, section detection
     pdf/         resume and posting PDFs
     ai/          prompts, schemas, providers, the truthfulness check
     sync/        encryption, accounts, the sync engine, the Supabase backend

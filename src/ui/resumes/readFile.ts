@@ -2,6 +2,7 @@
  * Reading an uploaded resume file in the dashboard: its text, and its bytes
  * for attaching to applications unchanged.
  */
+import { latexToText } from '@/core/resume/latex';
 import { extractDocxText } from '@/core/resume/parseDocx';
 import { linesFromItems, type TextItem } from '@/core/resume/pdfText';
 import { bytesToBase64 } from '@/core/util/base64';
@@ -14,7 +15,10 @@ export interface ReadResume {
   text: string;
 }
 
-export const ACCEPT = '.pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
+export const ACCEPT =
+  '.pdf,.docx,.tex,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/x-tex,text/x-tex,text/plain';
+
+export const LATEX_MIME = 'application/x-tex';
 const MAX_BYTES = 8 * 1024 * 1024;
 
 async function pdfText(bytes: Uint8Array): Promise<string> {
@@ -56,6 +60,14 @@ export async function readResumeFile(file: File): Promise<ReadResume> {
         'No text could be read from this PDF. It may be a scan or an image. Upload a text-based PDF or paste the text instead.',
       );
     }
+  } else if (lower.endsWith('.tex') || file.type === LATEX_MIME || file.type === 'text/x-tex') {
+    mime = LATEX_MIME;
+    text = latexToText(new TextDecoder().decode(bytes));
+    if (text.replace(/\s/g, '').length < 40) {
+      throw new Error(
+        'Too little text could be read from this LaTeX file. If your resume is split over several files, upload the PDF it makes instead.',
+      );
+    }
   } else if (lower.endsWith('.docx')) {
     mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     text = extractDocxText(bytes);
@@ -65,7 +77,7 @@ export async function readResumeFile(file: File): Promise<ReadResume> {
   } else if (lower.endsWith('.doc')) {
     throw new Error('Old-style .doc files are not supported. Save it as .docx or PDF, or paste the text.');
   } else {
-    throw new Error('Upload a PDF, a Word document (.docx) or a text file.');
+    throw new Error('Upload a PDF, a Word document (.docx), a LaTeX file (.tex) or a text file.');
   }
 
   return { name: file.name, mime, size: file.size, base64: bytesToBase64(bytes), text: text.trim() };

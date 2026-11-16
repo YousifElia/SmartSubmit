@@ -231,7 +231,8 @@ export interface Resume {
   id: string;
   name: string;
   isDefault: boolean;
-  source: 'paste' | 'upload';
+  /** Where the text came from. A LaTeX upload keeps no file: a PDF is built from its sections. */
+  source: 'paste' | 'upload' | 'latex';
   /** Plain text of the resume, as pasted or extracted from the upload. */
   text: string;
   /** Structured form; present once parsed (automatically or by AI) or edited. */

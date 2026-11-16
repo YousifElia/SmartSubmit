@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { ClipboardPaste, Eye, FileText, Pencil, Star, Trash2, Upload, UserRoundCheck } from 'lucide-react';
 import { send } from '@/core/messages';
 import { looksStructured, parseResumeText } from '@/core/resume/heuristics';
+import { latexToText, looksLikeLatex } from '@/core/resume/latex';
 import { profileFromResume } from '@/core/resume/toProfile';
 import * as db from '@/core/storage/db';
 import type { Resume } from '@/core/types';
@@ -10,7 +11,7 @@ import { newId } from '@/core/util/id';
 import { Badge, Button, EmptyState, Modal, Notice, Spinner, TextArea, TextField } from '../kit';
 import { useCollection } from '../hooks';
 import { PdfPreview } from './PdfPreview';
-import { ACCEPT, readResumeFile } from './readFile';
+import { ACCEPT, LATEX_MIME, readResumeFile } from './readFile';
 
 function describe(resume: Resume): string {
   const doc = resume.doc;
@@ -27,12 +28,17 @@ function describe(resume: Resume): string {
 }
 
 function sourceLabel(resume: Resume): string {
-  if (!resume.file) return 'Pasted text';
+  if (!resume.file) return resume.source === 'latex' ? 'LaTeX' : 'Pasted text';
   return resume.file.mime === 'application/pdf' ? 'PDF upload' : resume.file.mime === 'text/plain' ? 'Text file' : 'Word upload';
 }
 
 /** Create and store a resume from its text, parsing it into sections. */
-async function addResume(input: { name: string; text: string; file?: { name: string; mime: string; size: number; base64: string } }): Promise<Resume> {
+async function addResume(input: {
+  name: string;
+  text: string;
+  source?: Resume['source'];
+  file?: { name: string; mime: string; size: number; base64: string };
+}): Promise<Resume> {
   const existing = await db.list('resumes');
   const doc = parseResumeText(input.text);
   const fileId = input.file ? newId() : null;
@@ -40,7 +46,7 @@ async function addResume(input: { name: string; text: string; file?: { name: str
     id: newId(),
     name: input.name.trim() || `Resume ${existing.length + 1}`,
     isDefault: existing.length === 0,
-    source: input.file ? 'upload' : 'paste',
+    source: input.source ?? (input.file ? 'upload' : 'paste'),
     text: input.text,
     doc: looksStructured(doc) ? doc : null,
     file: input.file && fileId ? { id: fileId, name: input.file.name, mime: input.file.mime, size: input.file.size } : null,
@@ -94,7 +100,9 @@ function PasteDialog({ onClose, onAdded }: { onClose: () => void; onAdded: (resu
             disabled={text.trim().length < 30}
             onClick={async () => {
               setBusy(true);
-              onAdded(await addResume({ name, text }));
+              // LaTeX source pasted in is read for what it prints.
+              const latex = looksLikeLatex(text);
+              onAdded(await addResume({ name, text: latex ? latexToText(text) : text, source: latex ? 'latex' : 'paste' }));
               onClose();
             }}
           >
@@ -108,7 +116,7 @@ function PasteDialog({ onClose, onAdded }: { onClose: () => void; onAdded: (resu
         <TextArea
           label="Resume text"
           rows={16}
-          placeholder="Paste the full text of your resume here."
+          placeholder="Paste the full text of your resume here, or its LaTeX source."
           hint="SmartSubmit splits it into sections you can edit, and builds a clean PDF from them to attach to applications."
           value={text}
           onChange={setText}
@@ -147,12 +155,15 @@ export function ResumeManager({ compact, onEdit }: { compact?: boolean; onEdit?:
     setNotice('');
     try {
       const read = await readResumeFile(file);
-      // Text files are just pasted text; there is no original file worth attaching.
-      const keepFile = read.mime !== 'text/plain';
+      // Text and LaTeX files can't be attached to applications as they are:
+      // a PDF is built from their sections instead.
+      const latex = read.mime === LATEX_MIME;
+      const keepFile = read.mime !== 'text/plain' && !latex;
       await afterAdd(
         await addResume({
           name: file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '),
           text: read.text,
+          source: latex ? 'latex' : undefined,
           file: keepFile ? read : undefined,
         }),
       );
@@ -180,7 +191,7 @@ export function ResumeManager({ compact, onEdit }: { compact?: boolean; onEdit?:
         <Button icon={<ClipboardPaste size={15} />} onClick={() => setPasting(true)}>
           Paste text
         </Button>
-        <span className="text-xs text-slate-400">PDF, Word (.docx) or plain text</span>
+        <span className="text-xs text-slate-400">PDF, Word (.docx), LaTeX (.tex) or plain text</span>
         <input
           ref={fileInput}
           type="file"
@@ -235,7 +246,9 @@ export function ResumeManager({ compact, onEdit }: { compact?: boolean; onEdit?:
                     <p className="mt-1 text-xs text-slate-400">
                       {resume.file
                         ? `Attached to applications as your original file, ${resume.file.name}.`
-                        : 'Attached to applications as a PDF built from its sections.'}
+                        : resume.source === 'latex'
+                          ? 'Attached to applications as a PDF built from its sections. To send the PDF your LaTeX makes instead, upload that PDF.'
+                          : 'Attached to applications as a PDF built from its sections.'}
                     </p>
                   )}
                 </div>

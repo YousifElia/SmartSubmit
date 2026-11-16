@@ -1,0 +1,121 @@
+%-------------------------
+% A one-page resume in the style many students write in LaTeX:
+% a few commands of its own over itemize lists and tabular* rows.
+% Invented content.
+%-------------------------
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\renewcommand{\headrulewidth}{0pt}
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\urlstyle{same}
+\raggedbottom
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+\pdfgentounicode=1
+
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+    \textbf{\Huge \scshape Avery Testerson} \\ \vspace{1pt}
+    \small 519-555-0142 $|$ \href{mailto:avery.testerson@example.com}{\underline{avery.testerson@example.com}} $|$
+    \href{https://linkedin.com/in/avery-testerson}{\underline{LinkedIn}} $|$
+    \href{https://github.com/averytesterson}{\underline{github.com/averytesterson}}
+\end{center}
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {University of Windsor}{Windsor, ON}
+      {Bachelor of Computer Science (Honours), Minor in Mathematics}{Sep. 2023 -- May 2027}
+  \resumeSubHeadingListEnd
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+
+    \resumeSubheading
+      {Software Developer Intern}{May 2025 -- Aug. 2025}
+      {Northwind Systems}{Toronto, ON}
+      \resumeItemListStart
+        \resumeItem{Built a telemetry pipeline in \textbf{Go} and \textbf{Kafka} handling 40\% more events per second}
+        \resumeItem{Cut dashboard load time from 6\,s to 1.2\,s by caching queries in Redis}
+        % \resumeItem{An old line that was commented out}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {Teaching Assistant}{Jan. 2024 -- Apr. 2025}
+      {University of Windsor}{Windsor, ON}
+      \resumeItemListStart
+        \resumeItem{Ran weekly labs for 60 students in Data Structures \& Algorithms}
+      \resumeItemListEnd
+
+  \resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Projects}
+    \resumeSubHeadingListStart
+      \resumeProjectHeading
+          {\textbf{Shelfie} $|$ \emph{TypeScript, React, PostgreSQL}}{Jan. 2025 -- Present}
+          \resumeItemListStart
+            \resumeItem{Wrote a book-swap web app used by 300 students, with search and r\'esum\'e-style profiles}
+          \resumeItemListEnd
+    \resumeSubHeadingListEnd
+
+%-----------SKILLS-----------
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Languages}{: Java, Python, C/C++, SQL, TypeScript} \\
+     \textbf{Frameworks}{: React, Node.js, Flask} \\
+     \textbf{Developer Tools}{: Git, Docker, AWS}
+    }}
+ \end{itemize}
+
+\end{document}
