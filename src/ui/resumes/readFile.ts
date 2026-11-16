@@ -19,8 +19,10 @@ const MAX_BYTES = 8 * 1024 * 1024;
 
 async function pdfText(bytes: Uint8Array): Promise<string> {
   // Loaded on demand: pdf.js is large and only needed when a PDF is uploaded.
-  const pdfjs = await import('pdfjs-dist');
-  const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+  // The "legacy" build carries what older browsers lack: the current one
+  // calls Uint8Array.prototype.toHex, which Chrome only gained in late 2025.
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const worker = await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
   // pdf.js takes ownership of the buffer it is given, so hand it a copy.
   const task = pdfjs.getDocument({ data: bytes.slice() });

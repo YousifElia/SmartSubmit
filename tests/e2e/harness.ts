@@ -252,6 +252,8 @@ export interface LaunchOptions {
    * the replicas or blocked.
    */
   network?: string[];
+  /** Extra Chromium switches, for instance to stand in for an older browser. */
+  args?: string[];
 }
 
 /** Launch Chromium with the built extension in a fresh profile. */
@@ -263,7 +265,7 @@ export async function launchApp(options: LaunchOptions = {}): Promise<{ app: App
     channel: 'chromium',
     headless: true,
     viewport: { width: 1360, height: 950 },
-    args: [`--disable-extensions-except=${EXTENSION}`, `--load-extension=${EXTENSION}`],
+    args: [`--disable-extensions-except=${EXTENSION}`, `--load-extension=${EXTENSION}`, ...(options.args ?? [])],
     proxy,
   });
 

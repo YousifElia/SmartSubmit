@@ -5,7 +5,7 @@ import { renderResumePdf } from '../../src/core/pdf/resumeTemplate';
 import { emptyProfile } from '../../src/core/defaults';
 import type { Profile, Resume } from '../../src/core/types';
 import { sampleResumeDoc } from '../fixtures/sampleResume';
-import { expect, PAGES, test, type App } from './harness';
+import { expect, launchApp, PAGES, test, type App } from './harness';
 
 const font = (name: string) => new Uint8Array(readFileSync(join(import.meta.dirname, '../../public/fonts', name)));
 const FONTS = { regular: font('Lato-Regular.ttf'), bold: font('Lato-Bold.ttf'), italic: font('Lato-Italic.ttf'), boldItalic: font('Lato-BoldItalic.ttf') };
@@ -145,5 +145,21 @@ test.describe('Resumes', () => {
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(page.getByTestId('resume-card')).toHaveCount(1);
     await expect(second).toContainText('Default');
+  });
+
+  test('a PDF can be read in a browser without the newest built-in functions', async () => {
+    // Chrome versions from before late 2025 lack Uint8Array.prototype.toHex,
+    // which the current pdf.js expects; this switches it off to match them.
+    const { app, close } = await launchApp({ args: ['--js-flags=--no-js-base-64'] });
+    try {
+      expect(await app.dashboard.evaluate(() => typeof (Uint8Array.prototype as unknown as { toHex?: unknown }).toHex)).toBe('undefined');
+      await app.seed({ profile: emptyProfile() });
+      const page = await openResumes(app);
+      const pdf = await renderResumePdf(sampleResumeDoc(), { fonts: FONTS, pageSize: 'letter' });
+      await page.getByTestId('resume-file-input').setInputFiles({ name: 'resume.pdf', mimeType: 'application/pdf', buffer: Buffer.from(pdf) });
+      await expect(page.getByTestId('resume-card')).toContainText('2 roles · 1 school · 1 project · 11 skills');
+    } finally {
+      await close();
+    }
   });
 });
