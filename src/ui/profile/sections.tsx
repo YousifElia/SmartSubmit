@@ -3,6 +3,7 @@
  * both by the onboarding wizard and by the dashboard's Profile page.
  */
 import { Plus, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AUTH_STATUSES,
   DEGREES,
@@ -55,7 +56,16 @@ const YES_NO: readonly { value: 'yes' | 'no'; label: string }[] = [
   { value: 'no', label: 'No' },
 ];
 
-/** Month + year picker producing 'YYYY-MM', 'YYYY' or ''. Works in Firefox, which has no month input. */
+function splitYearMonth(value: YearMonth): { year: string; month: string } {
+  const [year = '', month = ''] = value.split('-');
+  return { year, month };
+}
+
+/**
+ * Month + year picker producing 'YYYY-MM', 'YYYY' or ''. Works in Firefox,
+ * which has no month input. Either part can be chosen first: what is chosen
+ * is kept on screen, and saved once the year is complete.
+ */
 export function MonthField({
   label,
   value,
@@ -69,20 +79,32 @@ export function MonthField({
   disabled?: boolean;
   hint?: string;
 }) {
-  const [year = '', month = ''] = value.split('-');
-  const update = (y: string, m: string) => {
-    const cleanYear = y.replace(/\D/g, '').slice(0, 4);
-    if (!cleanYear) return onChange('');
-    onChange(m ? `${cleanYear}-${m}` : cleanYear);
+  const [draft, setDraft] = useState(() => splitYearMonth(value));
+  const sent = useRef(value);
+  useEffect(() => {
+    // Follow changes made elsewhere (a resume read into the profile, sync), not our own.
+    if (value === sent.current) return;
+    sent.current = value;
+    setDraft(splitYearMonth(value));
+  }, [value]);
+
+  const update = (year: string, month: string) => {
+    const cleanYear = year.replace(/\D/g, '').slice(0, 4);
+    setDraft({ year: cleanYear, month });
+    const next = cleanYear.length === 4 ? (month ? `${cleanYear}-${month}` : cleanYear) : '';
+    if (next === sent.current) return;
+    sent.current = next;
+    onChange(next);
   };
+  const waiting = !disabled && draft.year.length < 4 && (draft.month !== '' || draft.year !== '');
   return (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={waiting ? 'Add the full year to save this date.' : hint}>
       <div className="flex gap-2">
         <select
           aria-label={`${label} month`}
           disabled={disabled}
-          value={month}
-          onChange={(e) => update(year, e.target.value)}
+          value={draft.month}
+          onChange={(e) => update(draft.year, e.target.value)}
           className="block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm shadow-sm outline-none ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-brand-600 disabled:bg-slate-50 disabled:text-slate-400"
         >
           <option value="">Month</option>
@@ -97,8 +119,8 @@ export function MonthField({
           disabled={disabled}
           inputMode="numeric"
           placeholder="Year"
-          value={year}
-          onChange={(e) => update(e.target.value, month)}
+          value={draft.year}
+          onChange={(e) => update(e.target.value, draft.month)}
           className="block w-24 shrink-0 rounded-lg border-0 bg-white px-3 py-2 text-sm shadow-sm outline-none ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-600 disabled:bg-slate-50 disabled:text-slate-400"
         />
       </div>
