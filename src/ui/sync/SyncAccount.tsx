@@ -407,7 +407,7 @@ function Confirming({ status }: { status: SyncStatus }) {
           <p>
             We sent a message to <b className="font-medium text-ink">{status.email}</b>. Open the link in it, then come back and press Continue.
           </p>
-          <p className="mt-1 text-xs text-slate-500">The page it opens won’t load. That’s expected: your address is confirmed all the same.</p>
+          <p className="mt-1 text-xs text-slate-500">Once the link has opened a page, your address is confirmed, whatever that page shows.</p>
         </div>
       </div>
       <Form onSubmit={() => void run(() => send('auth.confirm', { proof }))}>

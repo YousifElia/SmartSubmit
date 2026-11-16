@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Nothing on this page loads from elsewhere or sends anything anywhere. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex" />
+    <title>SmartSubmit sync</title>
+    <link rel="stylesheet" href="../style.css" />
+    <link rel="icon" href="../icon.png" />
+    <script src="confirmed.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <div class="brand"><img src="../icon.png" alt="" /> SmartSubmit</div>
+
+      <section data-state="confirmed" hidden>
+        <div class="badge ok" aria-hidden="true">✓</div>
+        <h1>Your email is confirmed</h1>
+        <p>Go back to SmartSubmit and press <b>Continue</b> to finish turning on sync.</p>
+        <p class="small">You can close this tab.</p>
+      </section>
+
+      <section data-state="recovery" hidden>
+        <div class="badge" aria-hidden="true">↺</div>
+        <h1>Finish resetting your password in SmartSubmit</h1>
+        <ol>
+          <li>Copy this page’s address.</li>
+          <li>In SmartSubmit, paste it into <b>Link from the email</b>, then choose your new password.</li>
+        </ol>
+        <label class="small" for="address">This page’s address</label>
+        <textarea id="address" readonly spellcheck="false"></textarea>
+        <button type="button" id="copy">Copy address</button>
+        <p class="small">Keep it to yourself: until it’s used or it expires, it signs in to your sync account.</p>
+      </section>
+
+      <section data-state="expired" hidden>
+        <div class="badge warn" aria-hidden="true">!</div>
+        <h1>This link has expired or was already used</h1>
+        <p>Links in SmartSubmit’s emails work once, for a limited time.</p>
+        <p>
+          <b>Confirming a new account?</b> Go back to SmartSubmit and press <b>Continue</b>: if your email is confirmed already, that finishes
+          the job. If it isn’t, choose <b>Use a different email</b> and sign up again with the same address for a new email.
+        </p>
+        <p><b>Resetting your password?</b> Ask SmartSubmit for a new reset email.</p>
+        <p class="small" id="detail" hidden></p>
+      </section>
+
+      <section data-state="none">
+        <div class="badge" aria-hidden="true">✉</div>
+        <h1>SmartSubmit sync emails</h1>
+        <p>The links in SmartSubmit’s sync emails lead here. If you just opened a confirmation link, your email is confirmed: go back to SmartSubmit and press <b>Continue</b>.</p>
+        <p class="small">SmartSubmit is an open-source browser extension for job applications. <a href="https://github.com/YousifElia/SmartSubmit">About SmartSubmit</a></p>
+      </section>
+    </main>
+  </body>
+</html>

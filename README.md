@@ -77,9 +77,11 @@ SmartSubmit has no server of its own. Sync runs through a free Supabase project 
 
 1. **Create a project** at [supabase.com](https://supabase.com) (the free plan is enough).
 2. **Create the tables.** In the dashboard's SQL editor, run the files in [`supabase/migrations`](supabase/migrations) in order. With the [Supabase CLI](https://supabase.com/docs/guides/cli) instead: `supabase link --project-ref <your-ref>`, then `supabase db push`.
-3. **Emails: nothing to set up for a server that is just for you.** Supabase's built-in email sender works as it is. Its emails carry a link, not a code, and SmartSubmit takes the link:
-   - **New account:** open the link in the confirmation email, come back and press **Continue**. The page the link opens won't load, which is expected. Or paste the link into SmartSubmit instead of opening it.
+3. **Emails: little to set up for a server that is just for you.** Supabase's built-in email sender works as it is. Its emails carry a link, not a code, and SmartSubmit takes the link:
+   - **New account:** open the link in the confirmation email, come back and press **Continue**. Or paste the link into SmartSubmit instead of opening it.
    - **Forgotten password:** copy the link from the reset email (right-click it, **Copy link address**) and paste it into SmartSubmit. Don't open it, because it works only once. If you did open it, paste the address of the page it opened instead.
+
+   After checking a link, Supabase opens the project's **Site URL**. Set it to `https://yousifelia.github.io/SmartSubmit/confirmed/` (in the dashboard: **Authentication**, **URL Configuration**, **Site URL**), and the page says your email is confirmed, or how to finish a password reset. That page is static and sends nothing anywhere; its source is in [`site/`](site), and you can host your own copy. With any other Site URL the page may not load, which is harmless: the address is confirmed all the same.
 
    The built-in sender only delivers to members of your Supabase organization, sends two emails an hour, and doesn't let you change the emails' wording.
 4. **If other people will use the server,** connect a mail service of your own (custom SMTP) in the project's Authentication settings. That lifts both limits and unlocks the email templates. You can then replace **Confirm signup** with [`supabase/templates/confirmation.html`](supabase/templates/confirmation.html) and **Reset password** with [`supabase/templates/recovery.html`](supabase/templates/recovery.html), so the emails show a code to type in. (`supabase config push` applies [`supabase/config.toml`](supabase/config.toml), templates included, if you use the CLI.)
@@ -145,6 +147,7 @@ src/
     storage/     the local record store
   ui/            shared dashboard components
 supabase/        database migrations, email templates, CLI config
+site/            the GitHub Pages site: the page the sync emails' links open
 tests/           unit, end-to-end and live tests, replica forms
 ```
 

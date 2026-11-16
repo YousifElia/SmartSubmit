@@ -14,7 +14,8 @@ You can export all of it as a backup file, and delete all of it, from SmartSubmi
 - **Reading a job posting.** On a supported application page, SmartSubmit reads the posting from the page, or from the public job data the application system publishes (for example Greenhouse's job board API or SmartRecruiters' posting API). These requests carry nothing about you.
 - **Sync, if you turn it on.** Your data is encrypted in your browser and sent to the sync server you chose: a Supabase project you control. The encryption key is derived from your password and never leaves your browser, so the server can't read your data. It does see your email address (your sign-in), and how many records you have, how big they are and when they changed.
 - **AI on another machine, if you set one up.** When you tailor a resume or draft an answer with a model that isn't on your own computer, the resume text and the job's description are sent to that server. With Ollama or another server on your computer (`localhost`), nothing leaves your computer. Firefox asks for your permission before either sync or such a model receives anything.
-- **Claude.** SmartSubmit never contacts Claude. It can copy a prepared prompt for you to paste into claude.ai yourself; what you paste there is between you and Anthropic.
+- **Claude.** SmartSubmit never contacts Claude. It can copy a prepared prompt for you to paste into claude.ai or Claude in Chrome yourself; what you paste there is between you and Anthropic.
+- **The links in sync emails** can open a page on SmartSubmit's GitHub Pages site, which says whether your email was confirmed. The page is static: it reads the result from its own address, in your browser, removes any sign-in details from the address bar, and sends nothing anywhere. Those details sit after a `#` in the address, a part browsers never send to the site.
 
 ## What it never does
 
