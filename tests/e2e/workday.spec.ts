@@ -52,25 +52,43 @@ test.describe('Workday', () => {
 
     // ── My Experience ── The answer from the last step is still on offer.
     await expect(panel.locator('.save-item')).toContainText('Have you previously worked for Acme Robotics?');
+    // Its sections start empty: SmartSubmit adds a block per job, school and
+    // language in the profile, then fills each.
+    await expect(page.locator('[data-automation-id^="workExperience-"]')).toHaveCount(0);
     await fillStep(app, page);
+    await expect(page.locator('[data-automation-id^="workExperience-"]')).toHaveCount(1);
+    await expect(page.locator('[data-automation-id^="education-"]')).toHaveCount(1);
+    await expect(page.locator('[data-automation-id^="language-"]')).toHaveCount(2);
     state = await stateOf(page);
     expect(state).toMatchObject({
-      jobTitle: 'Software Developer Co-op',
-      companyName: 'Example Robotics',
-      'startDate.Month': '01',
-      'startDate.Year': '2025',
-      'endDate.Month': '04',
-      'endDate.Year': '2025',
-      roleDescription: 'Built internal tools.',
-      schoolName: ['University of Windsor'], // a prompt with categories, searched
-      degree: "Bachelor's Degree",
-      fieldOfStudy: ['Computer Science'],
-      gradeAverage: '3.8',
-      'firstYearAttended.Year': '2023',
-      'lastYearAttended.Year': '2027',
+      'workExperience-1.jobTitle': 'Software Developer Co-op',
+      'workExperience-1.companyName': 'Example Robotics',
+      'workExperience-1.startDate.Month': '01',
+      'workExperience-1.startDate.Year': '2025',
+      'workExperience-1.endDate.Month': '04',
+      'workExperience-1.endDate.Year': '2025',
+      'workExperience-1.roleDescription': 'Built internal tools.',
+      'education-1.schoolName': ['University of Windsor'], // a prompt with categories, searched
+      'education-1.degree': "Bachelor's Degree",
+      'education-1.fieldOfStudy': ['Computer Science'],
+      'education-1.gradeAverage': '3.8',
+      'education-1.firstYearAttended.Year': '2023',
+      'education-1.lastYearAttended.Year': '2027',
+      // Each language with its level, asked three times; the fluent box only for the native one.
+      'language-1.language': 'English',
+      'language-1.nativeLanguage': true,
+      'language-1.languageProficiency-reading': '5 - Native or Bilingual',
+      'language-1.languageProficiency-speaking': '5 - Native or Bilingual',
+      'language-1.languageProficiency-writing': '5 - Native or Bilingual',
+      'language-2.language': 'French',
+      'language-2.languageProficiency-reading': '2 - Limited Working',
+      'language-2.languageProficiency-writing': '2 - Limited Working',
+      // Skills go in one at a time, each searched for and picked.
+      skills: ['Python', 'TypeScript', 'React.js', 'PostgreSQL', 'Docker'],
       resume: ['Avery_Testerson_Resume.pdf'],
       linkedinQuestion: profile.links.linkedin,
     });
+    expect(state['language-2.nativeLanguage']).toBeUndefined();
     await panel.locator('.save-item', { hasText: 'Have you previously worked for Acme Robotics?' }).getByRole('button', { name: 'Save', exact: true }).click();
     await expect(panel.locator('.notice')).toContainText('Answer saved');
     await next(page);
@@ -110,6 +128,33 @@ test.describe('Workday', () => {
     await page.reload();
     await app.autofill(page);
     expect((await stateOf(page)).candidateIsPreviousWorker).toBe('No');
+  });
+
+  test('creates the account with the saved email and password, leaving the consent box and the robot trap alone', async ({ app }) => {
+    const password = 'Gr8-Applications!';
+    await app.seed({ settings: (s) => ({ ...s, account: { email: 'jobs.avery@example.com', password } }) });
+    const page = await app.open(`${PAGES.workday}?account=create`);
+    const report = await app.autofill(page);
+    const state = await stateOf(page);
+    expect(state).toMatchObject({ email: 'jobs.avery@example.com', password, verifyPassword: password });
+    expect(state.createAccountCheckbox).toBeUndefined();
+    expect(state.beecatcher ?? '').toBe('');
+    expect(report.groups['Needs your answer']).toContain('Yes, I have read and consent to the terms and conditions');
+    // The panel never shows the password.
+    expect(await page.locator('smartsubmit-panel').evaluate((el) => el.shadowRoot?.textContent ?? '')).not.toContain(password);
+    expect(await page.evaluate(() => (window as unknown as { __submitted: boolean }).__submitted)).toBe(false);
+  });
+
+  test('without a saved password, the sign-in page gets the email and says where to save one', async ({ app }) => {
+    await app.seed();
+    const page = await app.open(`${PAGES.workday}?account=signin`);
+    const report = await app.autofill(page);
+    const state = await stateOf(page);
+    expect(state.email).toBe(sampleProfile().email);
+    expect(state.password ?? '').toBe('');
+    expect(report.groups['Needs your answer']).toContain('Password');
+    await page.locator('smartsubmit-panel').locator('.item', { hasText: 'Password' }).first().click().catch(() => undefined);
+    expect(await page.locator('smartsubmit-panel').evaluate((el) => el.shadowRoot?.textContent ?? '')).toContain('application accounts');
   });
 
   test('reads the job from Workday’s own job data', async ({ app }) => {

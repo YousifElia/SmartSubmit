@@ -36,6 +36,12 @@ export interface EngineContext {
   jobCountry: string;
   /** The resume to attach, fetched only if a resume field exists. Null when there is none. */
   resumeFile: () => Promise<File | null>;
+  /** The same resume as plain text, for a box that asks for it pasted in. */
+  resumeText?: () => Promise<string | null>;
+  /** The email and password saved for application-system accounts. */
+  account?: { email: string; password: string };
+  /** The page signs in to, or creates, an account with the application system. */
+  accountPage?: boolean;
   /** Leave file inputs alone (used by read-only checks on live sites). */
   skipFiles?: boolean;
 }
@@ -71,6 +77,9 @@ interface Plan {
 /** Confidence at or above which a profile match is entered without being flagged. */
 const SURE = 0.8;
 
+/** At most this many choices go into one multi-choice search box. */
+const MAX_MULTI = 20;
+
 /**
  * Agreements, consents and signatures. These are never entered or remembered:
  * they bind the person to something, so they give them themselves, each time.
@@ -79,6 +88,13 @@ export const CONSENT =
   /\b(i (have read|agree|accept|acknowledge|consent|certify|confirm|attest|authori[sz]e|understand)|agree to|consent|acknowledg(e|ement)|attest(ation)?|terms (of (service|use)|and conditions|& conditions)|privacy (policy|notice|statement)|(e-?|electronic )?signature)\b/i;
 
 const KEY_LABELS: Partial<Record<FieldKey, string>> = {
+  skills: 'skills',
+  languagesSpoken: 'languages',
+  language: 'languages',
+  languageLevel: 'languages, with how well you speak them,',
+  speaksLanguage: 'languages',
+  accountPassword: 'application-account password',
+  accountPasswordConfirm: 'application-account password',
   linkedin: 'LinkedIn link',
   github: 'GitHub link',
   portfolio: 'portfolio link',
@@ -161,11 +177,20 @@ function result(field: FormField, over: Partial<FieldResult>): FieldResult {
  */
 class GroupCounter {
   private seen = new Map<string, number>();
+  private language = -1;
   next(key: FieldKey, field: FormField): number {
-    if (!/^(edu|exp)/.test(key)) return 0;
-    if (field.group > 0) return field.group;
+    const languageEntry = key === 'language' || key === 'languageLevel' || key === 'languageFluent';
+    if (!/^(edu|exp)/.test(key) && !languageEntry) return 0;
+    if (field.groupFixed || field.group > 0) {
+      if (key === 'language') this.language = field.group;
+      return field.group;
+    }
+    // A language entry can ask its level several times (reading, writing,
+    // speaking): those follow the language named last.
+    if (key === 'languageLevel' || key === 'languageFluent') return Math.max(this.language, 0);
     const count = this.seen.get(key) ?? 0;
     this.seen.set(key, count + 1);
+    if (key === 'language') this.language = count;
     return count;
   }
 }
@@ -175,6 +200,13 @@ function plan(field: FormField, ctx: EngineContext, groups: GroupCounter): Plan 
   const query = { question: field.label, options: field.options, multiple: field.multiple || field.kind === 'checkboxes' };
   const threshold = snapshot.settings.autofill.similarThreshold;
   const saved: AnswerMatch | null = field.label ? findAnswer(query, snapshot.answers, threshold) : null;
+  const classified = field.adapterKey ? { key: field.adapterKey, confidence: 0.97 } : classify(field);
+
+  // The resume's own text, fetched when it is entered: always the current one,
+  // never an older copy saved as an answer.
+  if (classified?.key === 'resumeText') {
+    return { source: 'resume', key: 'resumeText', value: { text: '', forms: [], certainty: 1 }, confidence: classified.confidence, answer: null, similarTo: '' };
+  }
 
   // 1. An answer saved for exactly this question.
   if (saved?.exact) {
@@ -182,7 +214,6 @@ function plan(field: FormField, ctx: EngineContext, groups: GroupCounter): Plan 
   }
 
   // 2. The profile.
-  const classified = field.adapterKey ? { key: field.adapterKey, confidence: 0.97 } : classify(field);
   let note = '';
   let key: FieldKey | null = null;
   if (classified) {
@@ -196,6 +227,8 @@ function plan(field: FormField, ctx: EngineContext, groups: GroupCounter): Plan 
       jobCountry: ctx.jobCountry,
       demographics: snapshot.settings.autofill.demographics,
       intlPhone: field.widget === 'intl-tel',
+      account: ctx.account,
+      accountPage: ctx.accountPage,
     });
     if (value) {
       return {
@@ -275,7 +308,7 @@ async function enter(field: FormField, value: ResolvedValue): Promise<{ shown: s
       const sets = value.multi ?? (value.forms.length > 0 ? [value.forms] : []);
       const picks = matchOptions(sets, field.options);
       if (picks.length === 0) return noOption();
-      fillCheckboxes(field.optionEls as HTMLInputElement[], picks);
+      await fillCheckboxes(field.optionEls as HTMLInputElement[], picks);
       return { shown: picks.map((i) => field.options[i]).join(', ') };
     }
     case 'checkbox': {
@@ -285,6 +318,16 @@ async function enter(field: FormField, value: ResolvedValue): Promise<{ shown: s
       return fillCheckbox(field.el as HTMLInputElement, true) ? { shown: 'Checked' } : { failed: 'The page did not accept the tick.' };
     }
     case 'combobox': {
+      // A search box that takes several choices, one at a time (skills).
+      if (field.multiple && value.multi && value.multi.length > 0) {
+        const chosen: string[] = [];
+        for (const set of value.multi.slice(0, MAX_MULTI)) {
+          const got = await fillCombobox(field, { forms: set, query: set[0], text: set[0] ?? '' });
+          if (got) chosen.push(got);
+          await sleep(60);
+        }
+        return chosen.length > 0 ? { shown: chosen.join(', ') } : noOption();
+      }
       const chosen = await fillCombobox(field, { forms: value.forms, query: value.query, text: value.text });
       return chosen ? { shown: chosen } : noOption();
     }
@@ -339,9 +382,31 @@ export async function autofill(fields: FormField[], ctx: EngineContext, options:
   return results;
 }
 
+/**
+ * A password box on an application system's sign-in or create-account page.
+ * Only the saved application-account password goes in, nothing remembered
+ * from elsewhere, and the panel never shows it.
+ */
+async function fillPassword(field: FormField, ctx: EngineContext): Promise<FieldResult> {
+  const key = field.adapterKey ?? classify(field)?.key ?? null;
+  if (key !== 'accountPassword' && key !== 'accountPasswordConfirm') {
+    return result(field, { status: 'skipped', key, note: 'A password box SmartSubmit doesn’t recognise: left for you.' });
+  }
+  if (isAnswered(field)) return result(field, { status: 'skipped', key, value: '••••••••', note: 'Already filled in, so left as it is.' });
+  if (!ctx.account) return result(field, { status: 'unknown', key, note: 'Press Autofill in the SmartSubmit panel to fill your saved password.' });
+  if (!ctx.account.password) {
+    return result(field, { status: 'unknown', key, note: 'Save the password you use for application accounts on SmartSubmit’s Profile page to have it filled.' });
+  }
+  const ok = fillText(field.el as HTMLInputElement, ctx.account.password);
+  return ok
+    ? result(field, { status: 'filled', source: 'profile', key, value: '••••••••', confidence: 1 })
+    : result(field, { status: 'failed', key, note: 'The page did not accept the password.' });
+}
+
 async function fillOne(field: FormField, ctx: EngineContext, groups: GroupCounter): Promise<FieldResult> {
   if (!field.el.isConnected) return result(field, { status: 'skipped', note: 'This field is no longer on the page.' });
   if (field.kind === 'file') return fillFile(field, ctx);
+  if (field.inputType === 'password') return fillPassword(field, ctx);
   if (CONSENT.test(field.label)) {
     return isAnswered(field)
       ? result(field, { status: 'skipped', value: display(readValue(field)), note: 'Already answered, so left as it is.' })
@@ -360,6 +425,12 @@ async function fillOne(field: FormField, ctx: EngineContext, groups: GroupCounte
   }
 
   if (!('value' in planned)) return result(field, { status: 'unknown', key: planned.key, note: planned.note });
+
+  if (planned.key === 'resumeText') {
+    const text = (await ctx.resumeText?.()) ?? null;
+    if (!text) return result(field, { status: 'unknown', key: planned.key, note: 'Add a resume in SmartSubmit to have its text pasted here.' });
+    planned.value = { ...planned.value, text };
+  }
 
   const entered = await enter(field, planned.value);
   if ('failed' in entered) {
@@ -421,6 +492,8 @@ export function collectCandidates(fields: FormField[], results: FieldResult[], a
   for (const field of fields) {
     if (field.kind === 'file' || !field.label || !field.el.isConnected) continue;
     if (SENSITIVE.test(field.label) || CONSENT.test(field.label) || field.inputType === 'password') continue;
+    // The resume's text is pasted from the resume each time, not remembered.
+    if (field.inputType === 'textarea' && classify(field)?.key === 'resumeText') continue;
 
     const current = readValue(field);
     if (current === null) continue;

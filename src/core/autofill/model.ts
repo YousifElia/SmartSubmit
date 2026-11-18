@@ -106,8 +106,17 @@ export type FieldKey =
   | 'disability'
   | 'indigenous'
   | 'visibleMinority'
+  | 'skills'
+  | 'languagesSpoken'
+  | 'language'
+  | 'languageLevel'
+  | 'languageFluent'
+  | 'speaksLanguage'
   | 'resume'
-  | 'coverLetter';
+  | 'resumeText'
+  | 'coverLetter'
+  | 'accountPassword'
+  | 'accountPasswordConfirm';
 
 export const DEMOGRAPHIC_KEYS: ReadonlySet<FieldKey> = new Set<FieldKey>([
   'gender',

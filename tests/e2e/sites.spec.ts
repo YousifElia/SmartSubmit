@@ -56,13 +56,12 @@ test.describe('Lever', () => {
       'eeo[veteran]': 'I am not a veteran',
     });
 
+    // The languages spoken fluently: English is native, French only intermediate.
+    expect(data[card('a6197d84-549e-4a91-8bb0-6af972510013', 1)]).toBe('English (ENG)');
+
     // Company-specific questions are left for the user.
     expect(report.groups['Needs your answer']).toEqual(
-      expect.arrayContaining([
-        'Which languages do you speak fluently?',
-        'Name Pronunciation | How do you pronounce your name?',
-        'What interests you about robotics?',
-      ]),
+      expect.arrayContaining(['Name Pronunciation | How do you pronounce your name?', 'What interests you about robotics?']),
     );
     expect(data[card('a6197d84-549e-4a91-8bb0-6af972510013', 2)]).toBe('');
     expect(await submitted(page)).toBe(false);
@@ -100,12 +99,11 @@ test.describe('Ashby', () => {
     expect(state['6686ff1d-a7f9-484b-af56-4c32ff8cd99f'] ?? '').toBe('');
 
     expect(report.groups['Needs your answer']).toEqual(
-      expect.arrayContaining([
-        'Have you completed at least two years of your degree?',
-        'Which languages have you used professionally?',
-        'Tell us about a project you are proud of',
-      ]),
+      expect.arrayContaining(['Have you completed at least two years of your degree?', 'Tell us about a project you are proud of']),
     );
+    // Programming languages, picked from the skills in the profile, and flagged: "professionally" is the person's call.
+    expect(state['c3c3c3c3-0000-4000-8000-000000000003']).toEqual(['Python', 'TypeScript']);
+    expect(report.groups['Check these']).toContain('Which languages have you used professionally?');
     expect(await submitted(page)).toBe(false);
   });
 });

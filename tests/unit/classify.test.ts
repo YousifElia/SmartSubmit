@@ -275,3 +275,45 @@ describe('classify: degree questions', () => {
     expect(keyOf('What is the highest degree you have completed?', options)).toBe('eduDegree');
   });
 });
+
+describe('classify: skills, languages, pasted resumes', () => {
+  it('finds skills questions', () => {
+    expect(keyOf('Skills')).toBe('skills');
+    expect(keyOf('Technical Skills')).toBe('skills');
+    expect(keyOf('List your skills', { inputType: 'textarea' })).toBe('skills');
+    expect(keyOf('Which programming languages do you know?', choice('checkboxes', ['Python', 'Go', 'Rust']))).toBe('skills');
+    expect(keyOf('Describe a time your skills helped a team succeed', { inputType: 'textarea' })).toBeNull();
+    // One language wanted, not the list.
+    expect(keyOf('What programming language are you strongest in?')).toBeNull();
+  });
+
+  it('tells spoken languages from programming ones by the question, or by the choices', () => {
+    expect(keyOf('What languages do you speak?')).toBe('languagesSpoken');
+    expect(keyOf('Languages')).toBe('languagesSpoken');
+    expect(keyOf('Which languages do you speak fluently?', choice('checkboxes', ['English (ENG)', 'French (FRA)', 'Spanish (SPA)']))).toBe('languagesSpoken');
+    expect(keyOf('Which languages have you used professionally?', choice('checkboxes', ['Python', 'TypeScript', 'Go', 'Rust']))).toBe('skills');
+  });
+
+  it('reads a languages entry by its section', () => {
+    const inLanguages = (label: string, extra: Partial<FieldInfo> = {}) => keyOf(label, { section: 'Languages', ...extra });
+    expect(inLanguages('Language', choice('select', ['English', 'French']))).toBe('language');
+    expect(inLanguages('Reading', choice('select', ['Beginner', 'Intermediate', 'Advanced', 'Fluent']))).toBe('languageLevel');
+    expect(inLanguages('Proficiency', choice('select', ['Beginner', 'Fluent']))).toBe('languageLevel');
+    expect(inLanguages('I am fluent in this language', { kind: 'checkbox' })).toBe('languageFluent');
+  });
+
+  it('asks "do you speak…?" only when a language is named, or bilingualism is', () => {
+    expect(keyOf('Are you fluent in French?', choice('radio'))).toBe('speaksLanguage');
+    expect(keyOf('Do you speak Spanish?', choice('select'))).toBe('speaksLanguage');
+    expect(keyOf('Are you bilingual?', choice('radio'))).toBe('speaksLanguage');
+    expect(keyOf('Do you speak up when you disagree?', choice('radio'))).toBeNull();
+  });
+
+  it('finds a box for pasting the resume, but not a file field or a cover letter', () => {
+    expect(keyOf('Paste your resume here', { inputType: 'textarea' })).toBe('resumeText');
+    expect(keyOf('Resume Text', { inputType: 'textarea' })).toBe('resumeText');
+    expect(keyOf('Copy and paste your CV', { inputType: 'textarea' })).toBe('resumeText');
+    expect(keyOf('Paste your resume here', { inputType: 'text' })).toBeNull();
+    expect(keyOf('Paste your cover letter', { inputType: 'textarea' })).toBeNull();
+  });
+});

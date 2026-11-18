@@ -19,6 +19,8 @@ const KEYS: Record<string, FieldKey> = {
 
 export const workable: SiteAdapter = {
   id: 'workable',
+  // "Add" opens an editor with its own Save: left for the person.
+  addsEntries: false,
 
   formRoot(doc) {
     const first = doc.querySelector('[data-ui="firstname"], form input[name="firstname"]');

@@ -1,4 +1,4 @@
-import type { CountryAuth, Education, Experience, Profile, ResumeDoc, Settings } from './types';
+import type { CountryAuth, Education, Experience, Profile, ResumeDoc, Settings, SpokenLanguage } from './types';
 import { newId } from './util/id';
 
 export function emptyCountryAuth(): CountryAuth {
@@ -19,6 +19,8 @@ export function emptyProfile(): Profile {
     links: { linkedin: '', github: '', portfolio: '', website: '', twitter: '', other: [] },
     education: [],
     experience: [],
+    skills: [],
+    languages: [],
     workAuth: { CA: emptyCountryAuth(), US: emptyCountryAuth() },
     preferences: {
       salary: '',
@@ -76,6 +78,10 @@ export function emptyExperience(): Experience {
   };
 }
 
+export function emptyLanguage(): SpokenLanguage {
+  return { id: newId(), language: '', level: '' };
+}
+
 export function emptyResumeDoc(): ResumeDoc {
   return {
     basics: { name: '', email: '', phone: '', location: '', links: [] },
@@ -113,6 +119,7 @@ export function defaultSettings(): Settings {
       key: (import.meta.env?.WXT_SUPABASE_KEY as string | undefined) ?? '',
     },
     panel: { side: 'right', hiddenHosts: [] },
+    account: { email: '', password: '' },
   };
 }
 

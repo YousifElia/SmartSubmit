@@ -11,12 +11,13 @@ import {
   type FieldResult,
   type Summary,
 } from '@/core/autofill/engine';
+import { addEntries, countEntries, findAddButtons, type EntryNeed } from '@/core/autofill/expand';
 import { discoverFields, type FormField } from '@/core/autofill/fields';
 import { captureJob as captureFromPage, jobCountry, postingKey, type JobCapture } from '@/core/jobs/extract';
 import type { MatchReport } from '@/core/jobs/keywords';
 import { send, type ResumeRef, type Snapshot } from '@/core/messages';
 import type { SiteId } from '@/core/sites';
-import type { Job, JobStatus, TailoredResume } from '@/core/types';
+import type { Job, JobStatus, Profile, TailoredResume } from '@/core/types';
 import { fillText } from '@/core/autofill/fill';
 import { CLAUDE_URL } from '@/core/ai/prompts';
 import { base64ToBytes } from '@/core/util/base64';
@@ -376,7 +377,34 @@ export class Controller {
     this.set({ phase: this.state.results.length > 0 ? 'done' : 'idle', progress: null, error: error instanceof Error ? error.message : String(error) });
   }
 
-  async autofill(options: { skipFiles?: boolean } = {}): Promise<FieldResult[]> {
+  /**
+   * Press the form's "Add" buttons until there is a block for each job,
+   * school and language in the profile. Returns how many were added.
+   */
+  private async makeRoom(profile: Profile): Promise<number> {
+    if (this.adapter.addsEntries === false) return 0;
+    const need: EntryNeed = {
+      experience: profile.experience.filter((e) => e.company.trim() || e.title.trim()).length,
+      education: profile.education.filter((e) => e.school.trim()).length,
+      languages: profile.languages.filter((l) => l.language.trim()).length,
+    };
+    if (need.experience + need.education + need.languages === 0) return 0;
+    const root = this.formRoot() ?? this.doc.body;
+    const count = (): EntryNeed => {
+      const seen = countEntries(this.scan());
+      const own = this.adapter.countEntries?.(root);
+      if (!own) return seen;
+      return {
+        experience: Math.max(seen.experience, own.experience),
+        education: Math.max(seen.education, own.education),
+        languages: Math.max(seen.languages, own.languages),
+      };
+    };
+    return addEntries(need, count, () => findAddButtons(root));
+  }
+
+  /** `auto`: started by itself when the form appeared, not by a press of Autofill. */
+  async autofill(options: { skipFiles?: boolean; auto?: boolean } = {}): Promise<FieldResult[]> {
     if (this.state.phase === 'working') return this.state.results;
     this.set({ phase: 'working', error: '', notice: '', progress: { done: 0, total: 0 } });
     try {
@@ -384,7 +412,9 @@ export class Controller {
       // The job's location settles questions like "authorized to work in the
       // country of this job". Don't hold up filling for a slow page, though.
       const capture = await Promise.race([this.captureJob(), new Promise<null>((r) => setTimeout(() => r(null), 2500))]);
-      const fields = this.scan();
+      let fields = this.scan();
+      // Make a block for every job, school and language before filling.
+      if (!options.auto && (await this.makeRoom(snapshot.profile)) > 0) fields = this.scan();
       clearHighlights(this.doc);
       this.dismissed.clear();
 
@@ -395,6 +425,10 @@ export class Controller {
       const ref = this.resumeRef();
       const company = capture?.company;
       let resume: File | null | undefined;
+      // A sign-in or create-account page: the saved account password is asked
+      // for only now, and only when someone pressed Autofill.
+      const accountPage = fields.some((f) => f.inputType === 'password');
+      const account = accountPage && !options.auto ? ((await send('account.credentials').catch(() => null)) ?? undefined) : undefined;
       const results = await autofill(
         fields,
         {
@@ -408,6 +442,9 @@ export class Controller {
             resume = payload ? new File([base64ToBytes(payload.base64)], payload.name, { type: payload.mime }) : null;
             return resume;
           },
+          resumeText: async () => (ref ? send('resume.text', { kind: ref.kind, id: ref.id }) : null),
+          account,
+          accountPage,
         },
         {
           onProgress: (done, total, latest) => {

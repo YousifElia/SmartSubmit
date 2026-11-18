@@ -24,6 +24,8 @@ function visibleControls(root: ParentNode): number {
 
 export const icims: SiteAdapter = {
   id: 'icims',
+  // Applying means signing in to an account with the employer's iCIMS.
+  passwords: true,
 
   formRoot(doc) {
     // The wrapper page holds no form of its own.

@@ -6,10 +6,11 @@
  * name/id. The best-scoring rule wins. Wording that would make the match
  * wrong ("company name", "recruiter's email") vetoes a rule outright.
  */
+import { isLanguageName, languagesIn } from '../data/languages';
 import type { Classification, ControlKind, FieldInfo, FieldKey } from './model';
 import { norm, splitIdentifier } from './text';
 
-type Section = '' | 'education' | 'experience';
+type Section = '' | 'education' | 'experience' | 'languages';
 
 interface Rule {
   key: FieldKey;
@@ -323,6 +324,82 @@ const RULES: Rule[] = [
     hint: /\b(resume|cv)\b/,
     score: 0.95,
   },
+  {
+    // A box to paste the resume's text into, often for the site to read it.
+    key: 'resumeText',
+    kinds: ['text'],
+    label: /\b(paste|copy (and|&) paste|copy paste)\b.*\b(resume|cv|curriculum vitae)\b|\b(resume|cv) (text|content|body)\b|\btext of your (resume|cv)\b|^(plain text )?(resume|cv)$/,
+    not: /\bcover\b/,
+    hint: /\bresume ?text\b|\bpaste ?resume\b|\bresume ?paste\b/,
+    question: true,
+    score: 0.92,
+  },
+
+  // ── Skills and languages ──
+  {
+    key: 'skills',
+    label:
+      /^(please )?(list |enter |add |select |choose )?(your |any |all )?((key|technical|relevant|core|top|professional|computer|software|additional|other) )?skills?( (and|&) (tools|technologies|expertise|competencies|qualifications|abilities|interests|certifications))?( \(.*\))?$|^(tools|technologies|software) (and|&) (technologies|tools|skills)$|^(areas of )?expertise$|^(core )?competencies$|^skill ?set$|\b(programming|coding|scripting|computer) languages\b/,
+    // One answer wanted ("your strongest language"), not the whole list.
+    not: /\b(strongest|favou?rite|best|most|primary|main|preferred|first|which one)\b/,
+    hint: /(^| )skills?( |$)/,
+    kinds: ['text', 'checkboxes', 'combobox', 'select'],
+    question: true,
+    score: 0.9,
+  },
+  {
+    key: 'languagesSpoken',
+    label:
+      /\b(what|which) (other )?languages? (do|can) you (speak|read|write|understand|communicate in)\b|\blanguages? (that )?you (speak|know|are fluent in)\b|\blanguages? spoken\b|\bspoken languages?\b|^(other |additional )?languages?( spoken| known)?$|\blanguages? (you are|you re) (fluent|proficient) in\b/,
+    not: /\b(programming|coding|scripting|computer|preferred)\b/,
+    question: true,
+    score: 0.9,
+  },
+  {
+    // "Are you fluent in French?", "Do you speak Spanish?", "Are you bilingual?"
+    key: 'speaksLanguage',
+    kinds: ['radio', 'select', 'checkbox', 'buttons', 'combobox'],
+    label: /\b(speak|fluent|fluency|bilingual|bilingualism|proficient|proficiency in|communicate in|read and write)\b/,
+    question: true,
+    score: 0.88,
+  },
+  // ── Application accounts (password boxes are only read on those systems' pages) ──
+  {
+    key: 'accountPassword',
+    types: ['password'],
+    label: /\bpassword\b/,
+    not: /\b(verify|confirm|confirmation|re ?enter|retype|repeat|again|old|current|previous)\b/,
+    score: 0.9,
+  },
+  {
+    key: 'accountPasswordConfirm',
+    types: ['password'],
+    label: /\b(verify|confirm|confirmation|re ?enter|retype|repeat)\b.*\bpassword\b|\bpassword\b.*\b(again|confirm|confirmation|verify)\b/,
+    score: 0.95,
+  },
+  // One entry of a languages section.
+  {
+    key: 'language',
+    section: 'languages',
+    kinds: ['select', 'combobox', 'text'],
+    label: /^(the )?language( name)?$|^(select |choose )?(a )?language$/,
+    hint: /(^| )language( |$)/,
+    score: 0.92,
+  },
+  {
+    key: 'languageLevel',
+    section: 'languages',
+    kinds: ['select', 'combobox', 'radio', 'buttons'],
+    label: /\b(proficiency|fluency|level|reading|writing|speaking|comprehension|overall|oral|written|spoken|listening)\b/,
+    score: 0.88,
+  },
+  {
+    key: 'languageFluent',
+    section: 'languages',
+    kinds: ['checkbox'],
+    label: /\bfluent in this language\b|\bnative (language|speaker)\b|\b(first|native|mother) (language|tongue)\b/,
+    score: 0.9,
+  },
 ];
 
 /** Keys whose value is a yes/no fact; these need a choice or a short text field. */
@@ -347,6 +424,7 @@ function sectionOf(field: FieldInfo): Section {
   const text = `${norm(field.section)} | ${splitIdentifier(field.name)} | ${splitIdentifier(field.id)}`;
   if (/\b(education|academic|school|degree|discipline)\b/.test(text)) return 'education';
   if (/\b(experience|employment|work history|job history|employer|career history)\b/.test(text)) return 'experience';
+  if (/\blanguages?\b/.test(text)) return 'languages';
   return '';
 }
 
@@ -382,6 +460,12 @@ function fromOptions(field: FieldInfo): Classification | null {
   if (count(/\bveterans?\b/) >= 2) return { key: 'veteran', confidence: 0.85 };
   if (count(/^(male|man)$/) >= 1 && count(/^(female|woman)$/) >= 1) return { key: 'gender', confidence: 0.85 };
   if (count(/\bhispanic or latin[oax]\b/) >= 2) return { key: 'hispanic', confidence: 0.8 };
+  // "Which languages…?" over a list of spoken languages, or of programming ones.
+  if (/\blanguages?\b/.test(norm(field.label)) && (field.kind === 'checkboxes' || field.multiple)) {
+    const spoken = field.options.filter((o) => isLanguageName(o)).length;
+    if (spoken * 2 >= field.options.length) return { key: 'languagesSpoken', confidence: 0.85 };
+    return { key: 'skills', confidence: 0.7 };
+  }
   // A bare "Type" beside a phone number: its choices say what it is.
   if (options.length <= 8 && count(/^(mobile|cell|cellular)( phone)?$/) >= 1 && count(/^(home|work|office|business)( phone)?$/) >= 1) {
     return { key: 'phoneType', confidence: 0.8 };
@@ -446,6 +530,17 @@ export function classify(field: FieldInfo): Classification | null {
     }
   }
 
+  if (best?.key === 'speaksLanguage' && languagesIn(field.label).length === 0 && !/\bbilingual/.test(label)) best = null;
+  if (best?.key === 'resumeText' && field.inputType !== 'textarea') best = null;
+  // A password only ever goes in a password box, never in text that mentions one.
+  if ((best?.key === 'accountPassword' || best?.key === 'accountPasswordConfirm') !== (field.inputType === 'password')) {
+    if (field.inputType === 'password') return null;
+    best = null;
+  }
+  // A spoken-language question whose choices are programming languages asks for skills.
+  if (best?.key === 'languagesSpoken' && field.options.length > 1 && field.options.filter((o) => isLanguageName(o)).length * 2 < field.options.length) {
+    best = { key: 'skills', confidence: 0.7, span: best.span };
+  }
   if (!best || best.confidence < 0.6) return fromOptions(field);
 
   let key = best.key;

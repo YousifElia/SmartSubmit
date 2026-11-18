@@ -9,7 +9,7 @@
  * search when Enter is pressed and show choices as removable items; dates
  * are separate month and year boxes. The content is invented.
  */
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 
@@ -27,7 +27,12 @@ window.__submitted = false;
 let inputs = 0;
 const nextId = () => `input-${++inputs}`;
 
-function useField<T>(key: string, initial: T) {
+/** Inside a repeated entry, its fields are stored as "<entry>.<field>". */
+const Entry = createContext('');
+
+function useField<T>(name: string, initial: T) {
+  const prefix = useContext(Entry);
+  const key = prefix ? `${prefix}.${name}` : name;
   const [value, setValue] = useState<T>(() => (key in window.__state ? (window.__state[key] as T) : initial));
   return [
     value,
@@ -149,7 +154,7 @@ const leaves = (tree: Tree): string[] => tree.flatMap((n) => (n.children ? leave
  * opens its own list. Typing does nothing until Enter, which searches every
  * choice. A choice appears as a removable item.
  */
-function Prompt({ id, label, tree, required, automation }: { id: string; label: string; tree: Tree; required?: boolean; automation?: string }) {
+function Prompt({ id, label, tree, required, automation, multi }: { id: string; label: string; tree: Tree; required?: boolean; automation?: string; multi?: boolean }) {
   const [inputId] = useState(nextId);
   const listId = useId();
   const [chosen, set] = useField<string[]>(id, []);
@@ -172,7 +177,7 @@ function Prompt({ id, label, tree, required, automation }: { id: string; label: 
       setShown(node.children);
       return;
     }
-    set([node.name]);
+    set(multi ? [...chosen.filter((c) => c !== node.name), node.name] : [node.name]);
     setQuery('');
     setShown(tree);
     setOpen(false);
@@ -185,7 +190,7 @@ function Prompt({ id, label, tree, required, automation }: { id: string; label: 
           {chosen.map((c) => (
             <li key={c} data-automation-id="selectedItem" className="chip">
               <p>{c}</p>
-              <button type="button" aria-label={`Remove ${c}`} data-automation-id="DELETE_charm" onClick={() => set([])}>
+              <button type="button" aria-label={`Remove ${c}`} data-automation-id="DELETE_charm" onClick={() => set(chosen.filter((x) => x !== c))}>
                 ×
               </button>
             </li>
@@ -380,7 +385,63 @@ const SCHOOLS: Tree = [
   { name: 'Universities in Canada', children: [{ name: 'University of Toronto' }, { name: 'University of Waterloo' }, { name: 'University of Windsor' }, { name: 'Western University' }] },
   { name: 'Universities in the United States', children: [{ name: 'University of Michigan' }, { name: 'Wayne State University' }] },
 ];
+const LANGUAGES = ['Arabic', 'English', 'French', 'German', 'Mandarin', 'Punjabi', 'Spanish'];
+const LEVELS = ['1 - Elementary', '2 - Limited Working', '3 - Professional Working', '4 - Full Professional', '5 - Native or Bilingual'];
+const SKILLS: Tree = ['C++', 'Docker', 'Java', 'JavaScript', 'Kubernetes', 'PostgreSQL', 'Python', 'Python (Programming Language)', 'React.js', 'SQL', 'TypeScript'].map((name) => ({ name }));
 const FIELDS: Tree = [{ name: 'Computer Engineering' }, { name: 'Computer Science' }, { name: 'Mathematics' }, { name: 'Software Engineering' }];
+
+/**
+ * A section of entries that starts empty: "Add" makes the first, "Add Another"
+ * each one after, as on Workday's My Experience page.
+ */
+function Entries({ section, prefix, title, children }: { section: string; prefix: string; title: string; children: ReactNode }) {
+  const [count, setCount] = useState(0);
+  return (
+    <section data-automation-id={section}>
+      <h3>{title}</h3>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} data-automation-id={`${prefix}-${i + 1}`} role="group" aria-labelledby={`${prefix}-${i + 1}-title`}>
+          <h4 id={`${prefix}-${i + 1}-title`}>
+            {title} {i + 1}
+          </h4>
+          <Entry.Provider value={`${prefix}-${i + 1}`}>{children}</Entry.Provider>
+        </div>
+      ))}
+      <button type="button" data-automation-id="Add" aria-label={`${count ? 'Add Another' : 'Add'} ${title}`} onClick={() => setCount(count + 1)}>
+        {count ? 'Add Another' : 'Add'}
+      </button>
+    </section>
+  );
+}
+
+/** Before the application: create an account with this employer's Workday, or sign in. */
+function PasswordBox({ id, label }: { id: string; label: string }) {
+  const [inputId] = useState(nextId);
+  const [value, set] = useField(id, '');
+  return (
+    <Field id={id} label={label} required htmlFor={inputId}>
+      <input type="password" id={inputId} data-automation-id={id} aria-required value={value} onChange={(e) => set(e.target.value)} />
+    </Field>
+  );
+}
+
+function Account({ mode, onDone }: { mode: 'create' | 'signin'; onDone: () => void }) {
+  const [trap, setTrap] = useField('beecatcher', '');
+  return (
+    <div data-automation-id={mode === 'create' ? 'createAccountPage' : 'signInPage'}>
+      <h2>{mode === 'create' ? 'Create Account' : 'Sign In'}</h2>
+      <Text id="email" label="Email Address" required />
+      <PasswordBox id="password" label="Password" />
+      {mode === 'create' && <PasswordBox id="verifyPassword" label="Verify New Password" />}
+      {mode === 'create' && <Check id="createAccountCheckbox" label="Yes, I have read and consent to the terms and conditions" />}
+      {/* For robots only: kept off-screen. */}
+      <input type="text" data-automation-id="beecatcher" tabIndex={-1} aria-hidden="true" style={{ position: 'absolute', left: -10000 }} value={trap} onChange={(e) => setTrap(e.target.value)} />
+      <button type="button" data-automation-id={mode === 'create' ? 'createAccountSubmitButton' : 'signInSubmitButton'} onClick={onDone}>
+        {mode === 'create' ? 'Create Account' : 'Sign In'}
+      </button>
+    </div>
+  );
+}
 
 function MyInformation() {
   return (
@@ -414,30 +475,33 @@ function MyExperience() {
   return (
     <div data-automation-id="applyFlowMyExpPage">
       <h2>My Experience</h2>
-      <section data-automation-id="workExperienceSection">
-        <h3>Work Experience</h3>
-        <div data-automation-id="workExperience-1">
-          <h4>Work Experience 1</h4>
-          <Text id="jobTitle" label="Job Title" required />
-          <Text id="companyName" label="Company" required />
-          <Text id="location" label="Location" />
-          <Check id="currentlyWorkHere" label="I currently work here" />
-          <DateParts id="startDate" label="From" parts={['Month', 'Year']} required />
-          <DateParts id="endDate" label="To" parts={['Month', 'Year']} required />
-          <Text id="roleDescription" label="Role Description" textarea />
-        </div>
-      </section>
-      <section data-automation-id="educationSection">
-        <h3>Education</h3>
-        <div data-automation-id="education-1">
-          <h4>Education 1</h4>
-          <Prompt id="schoolName" label="School or University" tree={SCHOOLS} required />
-          <Dropdown id="degree" label="Degree" options={['High School Diploma', "Associate's Degree", "Bachelor's Degree", "Master's Degree", 'Doctorate']} required />
-          <Prompt id="fieldOfStudy" label="Field of Study" tree={FIELDS} />
-          <Text id="gradeAverage" label="Overall Result (GPA)" />
-          <DateParts id="firstYearAttended" label="From" parts={['Year']} />
-          <DateParts id="lastYearAttended" label="To (Actual or Expected)" parts={['Year']} />
-        </div>
+      <Entries section="workExperienceSection" prefix="workExperience" title="Work Experience">
+        <Text id="jobTitle" label="Job Title" required />
+        <Text id="companyName" label="Company" required />
+        <Text id="location" label="Location" />
+        <Check id="currentlyWorkHere" label="I currently work here" />
+        <DateParts id="startDate" label="From" parts={['Month', 'Year']} required />
+        <DateParts id="endDate" label="To" parts={['Month', 'Year']} required />
+        <Text id="roleDescription" label="Role Description" textarea />
+      </Entries>
+      <Entries section="educationSection" prefix="education" title="Education">
+        <Prompt id="schoolName" label="School or University" tree={SCHOOLS} required />
+        <Dropdown id="degree" label="Degree" options={['High School Diploma', "Associate's Degree", "Bachelor's Degree", "Master's Degree", 'Doctorate']} required />
+        <Prompt id="fieldOfStudy" label="Field of Study" tree={FIELDS} />
+        <Text id="gradeAverage" label="Overall Result (GPA)" />
+        <DateParts id="firstYearAttended" label="From" parts={['Year']} />
+        <DateParts id="lastYearAttended" label="To (Actual or Expected)" parts={['Year']} />
+      </Entries>
+      <Entries section="languageSection" prefix="language" title="Languages">
+        <Dropdown id="language" label="Language" options={LANGUAGES} required />
+        <Check id="nativeLanguage" label="I am fluent in this language." />
+        <Dropdown id="languageProficiency-reading" label="Reading" options={LEVELS} />
+        <Dropdown id="languageProficiency-speaking" label="Speaking" options={LEVELS} />
+        <Dropdown id="languageProficiency-writing" label="Writing" options={LEVELS} />
+      </Entries>
+      <section data-automation-id="skillsSection">
+        <h3>Skills</h3>
+        <Prompt id="skills" label="Type to Add Skills" tree={SKILLS} multi />
       </section>
       <ResumeUpload />
       <section>
@@ -503,9 +567,20 @@ function SelfIdentify() {
 
 const STEPS = ['My Information', 'My Experience', 'Application Questions', 'Voluntary Disclosures', 'Self Identify', 'Review'];
 
+const ACCOUNT = new URLSearchParams(location.search).get('account');
+
 function App() {
   const [step, setStep] = useState(0);
+  const [account, setAccount] = useState<'create' | 'signin' | null>(ACCOUNT === 'create' || ACCOUNT === 'signin' ? ACCOUNT : null);
   window.__step = step;
+  if (account) {
+    return (
+      <main data-automation-id="authPage">
+        <h1 data-automation-id="jobPostingHeader">Software Developer, Robotics Platform</h1>
+        <Account mode={account} onDone={() => setAccount(null)} />
+      </main>
+    );
+  }
   return (
     <main data-automation-id="applyFlowPage">
       <h1 data-automation-id="jobPostingHeader">Software Developer, Robotics Platform</h1>

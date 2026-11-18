@@ -212,7 +212,7 @@ export function ResumeManager({ compact, onEdit }: { compact?: boolean; onEdit?:
         <Notice tone="brand">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span>
-              Use “{offerImport.name}” to fill in the empty parts of your profile (name, contact details, education, work history)?
+              Use “{offerImport.name}” to fill in your profile: contact details, every job and school, skills and languages? Nothing you’ve entered is replaced.
             </span>
             <span className="flex gap-2">
               <Button size="sm" variant="primary" icon={<UserRoundCheck size={14} />} onClick={() => void importProfile(offerImport)}>

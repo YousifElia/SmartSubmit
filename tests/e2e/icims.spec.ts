@@ -113,4 +113,21 @@ test.describe('iCIMS', () => {
     expect(await page.locator('#searchLocation').inputValue()).toBe('');
     expect(report.filled).toBeGreaterThanOrEqual(7);
   });
+
+  test('adds a block for each job with "Add Another", and pastes the resume where asked', async ({ app }) => {
+    const profile = sampleProfile();
+    profile.experience.push({ id: 'x2', company: 'University of Windsor', title: 'Teaching Assistant', location: 'Windsor, ON', type: 'part-time', start: '2024-01', end: '2024-04', current: false, description: 'Ran labs.' });
+    await app.seed({ profile, resume: true });
+    const page = await app.open(`${PAGES.icims}?in_iframe=1&layout=loose`);
+    await app.autofill(page);
+    const value = (id: string) => page.locator(`[id="${id}"]`).inputValue();
+    await expect(page.locator('#experience .entry')).toHaveCount(2);
+    // Most recent first.
+    expect(await value('-1_Exp0_Title')).toBe('Software Developer Co-op');
+    expect(await value('-1_Exp0_Employer')).toBe('Example Robotics');
+    expect(await value('-1_Exp1_Title')).toBe('Teaching Assistant');
+    expect(await value('-1_Exp1_Employer')).toBe('University of Windsor');
+    expect(await value('-1_Exp1_Desc')).toBe('Ran labs.');
+    expect(await value('-1_ResumeText')).toBe('Avery Testerson\nSoftware developer');
+  });
 });

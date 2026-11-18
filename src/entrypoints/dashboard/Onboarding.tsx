@@ -8,14 +8,17 @@ import {
   DemographicsSection,
   EducationSection,
   ExperienceSection,
+  LanguagesSection,
   LinksSection,
   PreferencesSection,
+  SkillsSection,
   WorkAuthSection,
   type SectionProps,
 } from '@/ui/profile/sections';
 import { ResumeManager } from '@/ui/resumes/ResumeManager';
 import { AiSetup } from '@/ui/ai/AiSetup';
 import { SyncAccount } from '@/ui/sync/SyncAccount';
+import { AccountSection } from '@/ui/profile/AccountSection';
 
 interface Step {
   id: string;
@@ -27,6 +30,14 @@ interface Step {
 }
 
 const STEPS: Step[] = [
+  {
+    id: 'resumes',
+    short: 'Resume',
+    title: 'Start with your resume',
+    description:
+      'Paste it or upload it, and SmartSubmit fills the next steps from it: contact details, every job, school, skill and language. You can add more versions later; one is attached to applications by default.',
+    render: () => <ResumeManager compact />,
+  },
   {
     id: 'basics',
     short: 'About you',
@@ -56,6 +67,21 @@ const STEPS: Step[] = [
     render: (p) => <ExperienceSection {...p} />,
   },
   {
+    id: 'skills',
+    short: 'Skills',
+    title: 'Skills and languages',
+    description: 'For the skills sections and “which languages do you speak?” questions many applications have.',
+    render: (p) => (
+      <div className="space-y-8">
+        <SkillsSection {...p} />
+        <div>
+          <h3 className="mb-3 text-sm font-semibold text-ink">Languages</h3>
+          <LanguagesSection {...p} />
+        </div>
+      </div>
+    ),
+  },
+  {
     id: 'workauth',
     short: 'Work status',
     title: 'Work authorization',
@@ -77,11 +103,11 @@ const STEPS: Step[] = [
     render: (p) => <DemographicsSection {...p} />,
   },
   {
-    id: 'resumes',
-    short: 'Resumes',
-    title: 'Add your resume',
-    description: 'Paste the text or upload a file. Add as many versions as you like; one is attached by default.',
-    render: () => <ResumeManager compact />,
+    id: 'accounts',
+    short: 'Accounts',
+    title: 'Job site accounts',
+    description: 'Optional. Workday and iCIMS make you open an account with each employer. Save the email and password you use for them.',
+    render: (p) => <AccountSection profileEmail={p.profile.email} />,
   },
   {
     id: 'ai',

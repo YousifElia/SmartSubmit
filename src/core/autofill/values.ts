@@ -8,6 +8,7 @@ import {
   DEGREES,
   DISABILITY,
   GENDERS,
+  LANGUAGE_LEVELS,
   MONTHS,
   NO_FORMS,
   RACES,
@@ -18,6 +19,7 @@ import {
   choiceLabel,
 } from '../data/choices';
 import { COUNTRIES, countryByCode, countryForms, regionForms } from '../data/geo';
+import { languageForms, languagesIn, sameLanguage } from '../data/languages';
 import {
   cityRegion,
   educationByRecency,
@@ -26,7 +28,7 @@ import {
   fullName,
   shortName,
 } from '../profile';
-import type { Profile, Tri, TriDecline } from '../types';
+import type { LanguageLevel, Profile, SpokenLanguage, Tri, TriDecline } from '../types';
 import type { FieldInfo, FieldKey, FillValue } from './model';
 import { norm } from './text';
 
@@ -40,6 +42,44 @@ export interface ValueContext {
   demographics: boolean;
   /** The phone input is an international widget that wants a +country number. */
   intlPhone?: boolean;
+  /** The email and password saved for application-system accounts. */
+  account?: { email: string; password: string };
+  /** The page signs in to, or creates, an account with the application system. */
+  accountPage?: boolean;
+}
+
+const LEVEL_WORDS: Record<Exclude<LanguageLevel, ''>, string> = {
+  native: 'native',
+  fluent: 'fluent',
+  advanced: 'advanced',
+  intermediate: 'intermediate',
+  beginner: 'beginner',
+};
+
+/** Native, fluent and advanced speakers can work in the language. */
+const WORKING_LEVELS = new Set<LanguageLevel>(['native', 'fluent', 'advanced']);
+
+function spoken(profile: Profile): SpokenLanguage[] {
+  return profile.languages.filter((l) => l.language.trim() !== '');
+}
+
+/** "Are you fluent in French?": yes when every language it names is spoken well enough. */
+function speaks(profile: Profile, label: string, jobCountry: string): ResolvedValue | null {
+  const languages = spoken(profile);
+  if (languages.length === 0) return null;
+  const asksFluent = /\b(fluent|fluency|fluently|bilingual|bilingualism|proficient|proficiency|business|professional|working)\b/.test(label);
+  let named = languagesIn(label);
+  // In Canada, "bilingual" on its own means English and French.
+  if (named.length === 0 && /\bbilingual/.test(label)) {
+    if (jobCountry === 'CA' || jobCountry === '') named = ['English', 'French'];
+    else return tri(languages.filter((l) => WORKING_LEVELS.has(l.level)).length >= 2 ? 'yes' : 'no', 0.8);
+  }
+  if (named.length === 0) return null;
+  const entries = named.map((name) => languages.find((l) => sameLanguage(l.language, name)));
+  const enough = entries.every((e) => !!e && (asksFluent ? WORKING_LEVELS.has(e.level) : e.level !== 'beginner'));
+  if (enough) return tri('yes');
+  // A language missing from the profile may just not have been added: worth a look.
+  return tri('no', entries.every((e) => !!e) ? 1 : 0.7);
 }
 
 /** A value plus how sure we are that it is the right one for this question. */
@@ -169,7 +209,8 @@ export function profileValue(key: FieldKey, profile: Profile, ctx: ValueContext)
     case 'pronouns':
       return plain(profile.pronouns);
     case 'email':
-      return plain(profile.email);
+      // A sign-in or create-account page wants the account's email, if it differs.
+      return plain(ctx.accountPage && ctx.account?.email ? ctx.account.email : profile.email);
     case 'phone': {
       if (!profile.phone.trim()) return null;
       if (ctx.intlPhone) return plain(formatPhone(profile, 'e164'));
@@ -383,8 +424,46 @@ export function profileValue(key: FieldKey, profile: Profile, ctx: ValueContext)
     case 'visibleMinority':
       return ctx.demographics ? triDecline(demo.visibleMinority) : null;
 
-    // Files are attached by the engine, not typed.
+    // ── Skills and languages ──
+    case 'skills': {
+      const skills = profile.skills.filter((s) => s.trim() !== '');
+      if (skills.length === 0) return null;
+      return { text: skills.join(', '), forms: skills, multi: skills.map((s) => [s]), certainty: 1 };
+    }
+    case 'languagesSpoken': {
+      const fluentOnly = /\b(fluent|fluently|proficient|professional|business|working)\b/.test(label);
+      const list = spoken(profile).filter((l) => !fluentOnly || WORKING_LEVELS.has(l.level));
+      if (list.length === 0) return null;
+      const text = list.map((l) => (l.level ? `${l.language} (${LEVEL_WORDS[l.level as Exclude<LanguageLevel, ''>]})` : l.language)).join(', ');
+      return { text, forms: list.map((l) => l.language), multi: list.map((l) => languageForms(l.language)), certainty: 1 };
+    }
+    case 'language': {
+      const entry = spoken(profile)[ctx.group];
+      if (!entry) return null;
+      return { text: entry.language, forms: languageForms(entry.language), query: entry.language, certainty: 1 };
+    }
+    case 'languageLevel': {
+      const entry = spoken(profile)[ctx.group];
+      if (!entry?.level) return null;
+      return { text: choiceLabel(LANGUAGE_LEVELS, entry.level), forms: choiceForms(LANGUAGE_LEVELS, entry.level), certainty: 1 };
+    }
+    case 'languageFluent': {
+      const entry = spoken(profile)[ctx.group];
+      if (!entry?.level) return null;
+      const fluent = entry.level === 'native' || entry.level === 'fluent';
+      return { text: fluent ? 'Yes' : 'No', forms: [], checked: fluent, certainty: 1 };
+    }
+    case 'speaksLanguage':
+      return speaks(profile, label, ctx.jobCountry);
+
+    // ── Application accounts ──
+    case 'accountPassword':
+    case 'accountPasswordConfirm':
+      return ctx.account?.password ? { text: ctx.account.password, forms: [], certainty: 1 } : null;
+
+    // Files are attached, and the resume's text pasted, by the engine.
     case 'resume':
+    case 'resumeText':
     case 'coverLetter':
       return null;
   }

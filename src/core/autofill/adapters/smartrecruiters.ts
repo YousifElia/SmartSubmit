@@ -10,6 +10,8 @@ import type { SiteAdapter } from './types';
 
 export const smartrecruiters: SiteAdapter = {
   id: 'smartrecruiters',
+  // "Add" opens an editor with its own Save: left for the person.
+  addsEntries: false,
 
   formRoot(doc) {
     if (!doc.location.pathname.startsWith('/oneclick-ui/')) return null;

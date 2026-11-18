@@ -1,9 +1,20 @@
 import type { SiteId } from '../../sites';
+import type { EntryNeed } from '../expand';
 import type { DiscoveryHooks } from '../fields';
 
 /** What SmartSubmit knows about one application system's pages. */
 export interface SiteAdapter extends DiscoveryHooks {
   id: SiteId;
+  /**
+   * How many job, school and language blocks the page has, when the site
+   * marks them; otherwise they are counted from the fields found.
+   */
+  countEntries?: (root: ParentNode) => EntryNeed;
+  /**
+   * False where "Add" opens an editor with a Save of its own (Workable,
+   * SmartRecruiters): blocks are then left for the person to add.
+   */
+  addsEntries?: boolean;
   /**
    * The part of the page holding the application form, or null when this
    * page has no application form (a job listing, a confirmation page).

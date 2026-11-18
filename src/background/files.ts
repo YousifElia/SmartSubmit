@@ -1,3 +1,4 @@
+import { resumeAsText } from '@/core/ai/prompts';
 import type { FilePayload, Handlers } from '@/core/messages';
 import { renderPlainTextPdf, renderResumePdf, resumeFileName } from '@/core/pdf/resumeTemplate';
 import { fullName } from '@/core/profile';
@@ -54,7 +55,25 @@ export async function tailoredFile(id: string, company?: string): Promise<FilePa
   return resumePdf(tailored.doc, resumeFileName(tailored.doc.basics.name, company ?? job?.company));
 }
 
+/** A resume as text: as pasted or read from its file, or a tailored version's sections. */
+export async function resumeText(kind: 'resume' | 'tailored', id: string): Promise<string | null> {
+  if (kind === 'tailored') {
+    const tailored = await db.get('tailored', id);
+    return tailored ? plainResume(tailored.doc) : null;
+  }
+  const resume = await db.get('resumes', id);
+  if (!resume) return null;
+  return resume.text.trim() || (resume.doc ? plainResume(resume.doc) : null);
+}
+
+/** A structured resume written out as a person would type it. */
+function plainResume(doc: ResumeDoc): string {
+  const contact = [doc.basics.email, doc.basics.phone, doc.basics.location, ...doc.basics.links].filter(Boolean).join(' | ');
+  return [doc.basics.name, contact, '', resumeAsText({ ...doc, basics: { ...doc.basics, name: '' } }, '')].join('\n').trim();
+}
+
 export const fileHandlers = {
   'resume.file': ({ kind, id, company }) => (kind === 'resume' ? resumeFile(id) : tailoredFile(id, company)),
+  'resume.text': ({ kind, id }) => resumeText(kind, id),
   'pdf.resume': ({ doc, fileName }) => resumePdf(doc, fileName),
 } satisfies Partial<Handlers>;

@@ -147,7 +147,7 @@ function start(ctx: ContentScriptContext): Instance {
         if (snapshot.settings.autofill.autoRun && snapshot.onboarded && !autoRan && hasForm) {
           autoRan = true;
           controller.setOpen(true);
-          void controller.autofill();
+          void controller.autofill({ auto: true });
         }
       } catch {
         // The extension was reloaded or the background is unavailable; try again on the next tick.

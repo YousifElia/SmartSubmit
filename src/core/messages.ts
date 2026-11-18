@@ -105,6 +105,11 @@ export interface Protocol {
   /** Note that saved answers were used, for the "times used" count. */
   'answers.used': [{ ids: string[] }, void];
   'panel.hideHost': [{ host: string }, void];
+  /**
+   * The application-account email and password, for a sign-in or create-account
+   * page. Only answered for the application systems that have such accounts.
+   */
+  'account.credentials': [void, { email: string; password: string } | null];
   /** Ask a tab whether it holds an application form. Null if SmartSubmit is not running there. */
   'page.status': [{ tabId: number }, PageStatus | null];
   /** Open the panel in a tab (injecting SmartSubmit first if needed) and optionally autofill. */
@@ -112,6 +117,8 @@ export interface Protocol {
 
   /** The file to attach for a resume or a tailored version. */
   'resume.file': [{ kind: 'resume' | 'tailored'; id: string; company?: string }, FilePayload | null];
+  /** The same resume as plain text, for a form that asks for it pasted in. */
+  'resume.text': [{ kind: 'resume' | 'tailored'; id: string }, string | null];
   'pdf.resume': [{ doc: ResumeDoc; fileName?: string }, FilePayload];
   'pdf.job': [{ jobId: string }, FilePayload | null];
 

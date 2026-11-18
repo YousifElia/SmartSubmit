@@ -8,6 +8,7 @@
  * into month and year boxes. The sign-in page also carries a field for robots
  * only, which must never be filled.
  */
+import type { EntryKind, EntryNeed } from '../expand';
 import type { FormField } from '../fields';
 import type { FieldKey } from '../model';
 import { textOf, type SiteAdapter } from './types';
@@ -29,6 +30,9 @@ const KEYS: Record<string, FieldKey> = {
   'country-phone-code': 'phoneCountryCode',
   linkedinQuestion: 'linkedin',
   'file-upload-input-ref': 'resume',
+  // The sign-in and create-account pages.
+  password: 'accountPassword',
+  verifyPassword: 'accountPasswordConfirm',
   // Work experience and education entries.
   jobTitle: 'expTitle',
   companyName: 'expCompany',
@@ -37,6 +41,10 @@ const KEYS: Record<string, FieldKey> = {
   currentlyWorkHere: 'expCurrent',
   schoolName: 'eduSchool',
   school: 'eduSchool',
+  // Languages and skills.
+  language: 'language',
+  nativeLanguage: 'languageFluent',
+  skills: 'skills',
   degree: 'eduDegree',
   fieldOfStudy: 'eduField',
   gradeAverage: 'eduGpa',
@@ -73,9 +81,17 @@ function isShown(el: Element): boolean {
   return el.getClientRects().length > 0;
 }
 
+/** The block a repeated section's field sits in, and its first field's prefix. */
+const ENTRY_BLOCKS: Record<EntryKind, [section: string, prefix: string]> = {
+  experience: ['workExperienceSection', 'workExperience-'],
+  education: ['educationSection', 'education-'],
+  languages: ['languageSection', 'language-'],
+};
+const ENTRY = '[data-automation-id^="workExperience-"], [data-automation-id^="education-"], [data-automation-id^="language-"]';
+
 /** Which repeated entry a field belongs to: "workExperience-2" → 1. */
 function entryIndex(el: Element): number {
-  const entry = el.closest('[data-automation-id^="workExperience-"], [data-automation-id^="education-"]');
+  const entry = el.closest(ENTRY);
   const n = /-(\d+)$/.exec(entry?.getAttribute('data-automation-id') ?? '');
   return n ? Number(n[1]) - 1 : 0;
 }
@@ -88,6 +104,18 @@ function inEducation(el: Element): boolean {
 
 export const workday: SiteAdapter = {
   id: 'workday',
+  // Each employer's Workday has its own account to sign in to or create.
+  passwords: true,
+
+  countEntries(root) {
+    const counts: EntryNeed = { experience: 0, education: 0, languages: 0 };
+    for (const kind of Object.keys(ENTRY_BLOCKS) as EntryKind[]) {
+      const [section, prefix] = ENTRY_BLOCKS[kind];
+      const box = root.querySelector(`[data-automation-id="${section}"]`);
+      counts[kind] = box ? box.querySelectorAll(`[data-automation-id^="${prefix}"]`).length : 0;
+    }
+    return counts;
+  },
 
   formRoot(doc) {
     // Any step of the application, including its last, which has no questions.
@@ -157,6 +185,14 @@ export const workday: SiteAdapter = {
       field.adapterKey = `${prefix}${which === 'start' ? 'Start' : 'End'}${part}` as FieldKey;
     }
 
-    if (/^(edu|exp)/.test(field.adapterKey ?? '')) field.group = entryIndex(field.el);
+    // A language's level, asked for reading, writing and speaking in turn.
+    if (/^languageProficiency/.test(wrapper)) field.adapterKey = 'languageLevel';
+    // Skills: one search box that takes them one at a time.
+    if (field.adapterKey === 'skills') field.multiple = true;
+
+    if (/^(edu|exp|language)/.test(field.adapterKey ?? '') && field.adapterKey !== 'languagesSpoken') {
+      field.group = entryIndex(field.el);
+      field.groupFixed = true;
+    }
   },
 };

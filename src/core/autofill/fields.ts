@@ -23,6 +23,8 @@ export interface FormField extends FieldInfo {
   widget: Widget;
   /** Which repeated entry this belongs to (second education block → 1). */
   group: number;
+  /** The adapter placed the field in its entry itself: `group` holds even when 0. */
+  groupFixed?: boolean;
   /** A profile field assigned directly by the site adapter, bypassing the classifier. */
   adapterKey: FieldKey | null;
 }
@@ -37,6 +39,12 @@ export interface DiscoveryHooks {
   extra?: (root: ParentNode) => { fields: Partial<FormField>[]; claimed: Element[] };
   /** Adjust a discovered field: assign a profile key, a widget, a group. */
   refine?: (field: FormField) => void;
+  /**
+   * Include password boxes: the sign-in and create-account pages of the
+   * application systems that make you open an account. Elsewhere they are
+   * never touched.
+   */
+  passwords?: boolean;
 }
 
 const TEXT_INPUT_TYPES = new Set(['text', 'email', 'tel', 'url', 'number', 'date', 'month', 'week', 'time', 'datetime-local', '']);
@@ -226,13 +234,16 @@ function questionLabel(el: HTMLElement, previous: HTMLElement | null, hooks: Dis
 
 /** The label of one option in a radio or checkbox group. */
 function optionLabel(el: HTMLInputElement): string {
-  const own = labelForControl(el);
-  if (own) return cleanLabel(own);
+  // The label wrapped around the option is its own. A label pointing at it
+  // from elsewhere can be the question's: some forms aim the question's
+  // label at the first option.
   const wrap = el.closest('label');
   if (wrap) {
     const t = labelText(wrap);
     if (t) return cleanLabel(t);
   }
+  const own = labelForControl(el);
+  if (own) return cleanLabel(own);
   const aria = el.getAttribute('aria-label') ?? labelledBy(el);
   if (aria) return cleanLabel(aria);
   // Text right after the control: `<input type=radio> Yes`.
@@ -370,7 +381,7 @@ export function discoverFields(root: ParentNode, hooks: DiscoveryHooks = {}): Fo
     if (isCaptchaOrTrap(el)) return false;
     if (inSiteSearch(el, root)) return false;
     if (el instanceof HTMLInputElement) {
-      if (SKIP_INPUT_TYPES.has(el.type)) return false;
+      if (SKIP_INPUT_TYPES.has(el.type) && !(el.type === 'password' && hooks.passwords)) return false;
       if (el.type === 'radio' || el.type === 'checkbox') return isUsableChoice(el);
       if (el.readOnly && el.getAttribute('role') !== 'combobox') return false;
     }
@@ -478,7 +489,8 @@ export function discoverFields(root: ParentNode, hooks: DiscoveryHooks = {}): Fo
       continue;
     }
 
-    if (el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(el.type))) {
+    const password = el instanceof HTMLInputElement && el.type === 'password' && !!hooks.passwords;
+    if (el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && (TEXT_INPUT_TYPES.has(el.type) || password))) {
       drafts.push({
         order: el,
         build: (previous) =>

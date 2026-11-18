@@ -11,6 +11,7 @@ import type {
   DegreeLevel,
   EmploymentType,
   Gender,
+  LanguageLevel,
   Race,
   TriDecline,
   VeteranStatus,
@@ -288,6 +289,74 @@ export const WORK_MODES = [
   { value: 'hybrid', label: 'Hybrid', forms: ['Hybrid'] },
   { value: 'onsite', label: 'On-site', forms: ['On-site', 'Onsite', 'In office', 'In-person'] },
 ] as const;
+
+/**
+ * Language levels, with the wordings application forms use for them. Forms
+ * scale differently ("Native", "Fluent", "Professional working
+ * proficiency", "4 - Advanced"), so each level lists its own words first and
+ * the nearest neighbours after.
+ */
+export const LANGUAGE_LEVELS: Choice<Exclude<LanguageLevel, ''>>[] = [
+  {
+    value: 'native',
+    label: 'Native or bilingual',
+    forms: ['Native', 'Native speaker', 'Native or bilingual proficiency', 'Native / Bilingual', 'Bilingual', 'Mother tongue', 'First language', 'Fluent', 'Expert'],
+  },
+  {
+    value: 'fluent',
+    label: 'Fluent',
+    forms: ['Fluent', 'Full professional proficiency', 'Full professional', 'Expert', 'Excellent', 'Proficient', 'Advanced'],
+  },
+  {
+    value: 'advanced',
+    label: 'Advanced (professional)',
+    forms: ['Advanced', 'Professional working proficiency', 'Professional working', 'Proficient', 'Very good', 'Upper intermediate'],
+  },
+  {
+    value: 'intermediate',
+    label: 'Intermediate (conversational)',
+    forms: ['Intermediate', 'Limited working proficiency', 'Limited working', 'Conversational', 'Good', 'Working knowledge', 'Moderate'],
+  },
+  {
+    value: 'beginner',
+    label: 'Beginner',
+    forms: ['Beginner', 'Elementary proficiency', 'Elementary', 'Basic', 'Novice', 'Limited', 'Fair'],
+  },
+];
+
+/** Languages offered as suggestions in the profile; any other can be typed. */
+export const COMMON_LANGUAGES = [
+  'English',
+  'French',
+  'Spanish',
+  'Mandarin',
+  'Cantonese',
+  'Arabic',
+  'Hindi',
+  'Punjabi',
+  'Urdu',
+  'Bengali',
+  'Tamil',
+  'Gujarati',
+  'Tagalog',
+  'Vietnamese',
+  'Korean',
+  'Japanese',
+  'Portuguese',
+  'Italian',
+  'German',
+  'Russian',
+  'Ukrainian',
+  'Polish',
+  'Persian',
+  'Turkish',
+  'Greek',
+  'Hebrew',
+  'Dutch',
+  'Somali',
+  'Swahili',
+  'American Sign Language',
+];
 
 export const MONTHS = [
   'January',

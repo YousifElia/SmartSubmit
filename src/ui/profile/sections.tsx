@@ -2,14 +2,16 @@
  * Profile form sections. Each one edits a slice of the profile and is used
  * both by the onboarding wizard and by the dashboard's Profile page.
  */
-import { Plus, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Plus, Trash2, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   AUTH_STATUSES,
+  COMMON_LANGUAGES,
   DEGREES,
   DISABILITY,
   EMPLOYMENT_TYPES,
   GENDERS,
+  LANGUAGE_LEVELS,
   MONTHS,
   RACES,
   TRI_DECLINE,
@@ -17,7 +19,7 @@ import {
   WORK_MODES,
 } from '@/core/data/choices';
 import { COUNTRIES, regionsOf } from '@/core/data/geo';
-import { emptyCountryAuth, emptyEducation, emptyExperience } from '@/core/defaults';
+import { emptyCountryAuth, emptyEducation, emptyExperience, emptyLanguage } from '@/core/defaults';
 import type {
   AuthStatus,
   CountryAuth,
@@ -26,8 +28,10 @@ import type {
   EmploymentType,
   Experience,
   Gender,
+  LanguageLevel,
   Profile,
   Race,
+  SpokenLanguage,
   Tri,
   TriDecline,
   VeteranStatus,
@@ -406,6 +410,132 @@ export function ExperienceSection({ profile, onChange }: SectionProps) {
       ))}
       <Button icon={<Plus size={15} />} onClick={() => onChange({ ...profile, experience: [...list, emptyExperience()] })}>
         Add experience
+      </Button>
+    </div>
+  );
+}
+
+// ───────────────────────────── Skills ─────────────────────────────
+
+/** Split typed or pasted text into skills: "Python, Go; SQL" → three. */
+export function splitSkills(text: string): string[] {
+  return text
+    .split(/[,;\n•|]+/)
+    .map((s) => s.replace(/^[\s\-–*]+|[\s.]+$/g, '').trim())
+    .filter((s) => s.length > 0 && s.length <= 60);
+}
+
+/** Add skills to a list, keeping the first spelling of each. */
+export function addSkills(list: string[], more: string[]): string[] {
+  const seen = new Set(list.map((s) => s.toLowerCase()));
+  const out = [...list];
+  for (const skill of more) {
+    const key = skill.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(skill);
+  }
+  return out;
+}
+
+export function SkillsSection({ profile, onChange }: SectionProps) {
+  const [draft, setDraft] = useState('');
+  const list = profile.skills;
+  const commit = (text: string) => {
+    const more = splitSkills(text);
+    if (more.length) onChange({ ...profile, skills: addSkills(list, more) });
+    setDraft('');
+  };
+  return (
+    <div className="space-y-3">
+      {list.length > 0 ? (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Your skills">
+          {list.map((skill) => (
+            <li key={skill} className="inline-flex items-center gap-1 rounded-full bg-brand-50 py-1 pl-3 pr-1.5 text-[13px] text-brand-800 ring-1 ring-brand-100">
+              {skill}
+              <button
+                type="button"
+                aria-label={`Remove ${skill}`}
+                className="rounded-full p-0.5 text-brand-500 hover:bg-brand-100 hover:text-brand-800"
+                onClick={() => onChange({ ...profile, skills: list.filter((s) => s !== skill) })}
+              >
+                <X size={13} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[13px] text-slate-500">No skills yet. Add the tools, languages and abilities you’d list on a resume.</p>
+      )}
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          commit(draft);
+        }}
+      >
+        <TextField
+          aria-label="Add skills"
+          wrapClassName="flex-1"
+          placeholder="Python, React, Excel, project management…"
+          value={draft}
+          onChange={(v) => {
+            // A comma ends a skill, as with tags elsewhere.
+            if (/[,;\n]/.test(v)) commit(v);
+            else setDraft(v);
+          }}
+          onBlur={() => draft.trim() && commit(draft)}
+        />
+        <Button type="submit" icon={<Plus size={15} />} disabled={!draft.trim()}>
+          Add
+        </Button>
+      </form>
+      <p className="text-xs text-slate-500">Separate several with commas. Used when an application asks for your skills.</p>
+    </div>
+  );
+}
+
+// ───────────────────────────── Languages ─────────────────────────────
+
+export function LanguagesSection({ profile, onChange }: SectionProps) {
+  const list = profile.languages;
+  const update = (id: string, patch: Partial<SpokenLanguage>) =>
+    onChange({ ...profile, languages: list.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
+  const suggestions = useId();
+  return (
+    <div className="space-y-3">
+      {list.length === 0 && <p className="text-[13px] text-slate-500">Add every language you speak, including English.</p>}
+      <datalist id={suggestions}>
+        {COMMON_LANGUAGES.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+      {list.map((entry) => (
+        <div key={entry.id} className="flex items-end gap-2" data-testid="language-row">
+          <TextField
+            label="Language"
+            wrapClassName="flex-1"
+            list={suggestions}
+            value={entry.language}
+            onChange={(v) => update(entry.id, { language: v })}
+          />
+          <SelectField
+            label="How well"
+            wrapClassName="flex-1"
+            value={entry.level}
+            onChange={(v) => update(entry.id, { level: v as LanguageLevel })}
+            options={LANGUAGE_LEVELS}
+          />
+          <Button
+            variant="ghost"
+            aria-label={`Remove ${entry.language || 'this language'}`}
+            icon={<Trash2 size={15} />}
+            onClick={() => onChange({ ...profile, languages: list.filter((l) => l.id !== entry.id) })}
+          />
+        </div>
+      ))}
+      <Button icon={<Plus size={15} />} onClick={() => onChange({ ...profile, languages: [...list, emptyLanguage()] })}>
+        Add language
       </Button>
     </div>
   );

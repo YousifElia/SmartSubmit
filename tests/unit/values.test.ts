@@ -35,6 +35,12 @@ function profile(): Profile {
   p.preferences.over18 = 'yes';
   p.preferences.yearsExperience = '2';
   p.demographics = { gender: 'female', race: ['asian', 'white'], hispanic: 'no', veteran: 'not-veteran', disability: 'decline', indigenous: '', visibleMinority: 'yes' };
+  p.skills = ['Python', 'TypeScript', 'React'];
+  p.languages = [
+    { id: 'l1', language: 'English', level: 'native' },
+    { id: 'l2', language: 'French', level: 'intermediate' },
+    { id: 'l3', language: 'Arabic', level: 'fluent' },
+  ];
   return p;
 }
 
@@ -206,5 +212,53 @@ describe('highest degree', () => {
   it('gives only a finished one when the question asks for completed', () => {
     expect(pick('What is the highest degree you have completed?')).toBe('High school');
     expect(pick('Highest level of education obtained')).toBe('High school');
+  });
+});
+
+describe('profileValue: skills and languages', () => {
+  it('lists skills as text, or picks them from choices', () => {
+    expect(value('skills', field('Skills'))?.text).toBe('Python, TypeScript, React');
+    expect(value('skills', field('Skills', { kind: 'checkboxes', options: ['Python', 'Go', 'React'] }))?.multi).toEqual([['Python'], ['TypeScript'], ['React']]);
+  });
+
+  it('lists the languages spoken, only the fluent ones when the question says so', () => {
+    expect(value('languagesSpoken', field('What languages do you speak?'))?.text).toBe('English (native), French (intermediate), Arabic (fluent)');
+    const fluent = value('languagesSpoken', field('Which languages do you speak fluently?', { kind: 'checkboxes' }));
+    expect(fluent?.multi?.map((forms) => forms[0])).toEqual(['English', 'Arabic']);
+    // The codes forms write next to a language's name are among its wordings.
+    expect(fluent?.multi?.[0]).toEqual(expect.arrayContaining(['ENG']));
+  });
+
+  it('fills one languages entry: the language, its level, and the fluent box', () => {
+    const second = { group: 1 };
+    expect(value('language', field('Language'), second)?.text).toBe('French');
+    expect(value('languageLevel', field('Reading', { kind: 'select' }), second)?.forms[0]).toBe('Intermediate');
+    expect(value('languageLevel', field('Overall', { kind: 'select' }), { group: 0 })?.forms[0]).toBe('Native');
+    expect(value('languageFluent', field('I am fluent in this language', { kind: 'checkbox' }), second)?.checked).toBe(false);
+    expect(value('languageFluent', field('I am fluent in this language', { kind: 'checkbox' }), { group: 2 })?.checked).toBe(true);
+    expect(value('language', field('Language'), { group: 5 })).toBeNull();
+  });
+
+  it('answers "do you speak…?" from how well each named language is spoken', () => {
+    const yesNo = (label: string, jobCountry = '') => value('speaksLanguage', field(label, { kind: 'radio', options: ['Yes', 'No'] }), { jobCountry });
+    expect(yesNo('Are you fluent in Arabic?')?.text).toBe('Yes');
+    expect(yesNo('Do you speak French?')?.text).toBe('Yes');
+    expect(yesNo('Are you fluent in French?')?.text).toBe('No');
+    // In Canada, "bilingual" means English and French.
+    expect(yesNo('Are you bilingual?', 'CA')?.text).toBe('No');
+    expect(yesNo('Are you bilingual?', 'US')?.text).toBe('Yes');
+    // A language the profile doesn't list may just be missing: answered, but flagged.
+    const spanish = yesNo('Do you speak Spanish?');
+    expect(spanish?.text).toBe('No');
+    expect(spanish?.certainty).toBeLessThan(0.8);
+  });
+
+  it('uses the application-account details on sign-in pages only', () => {
+    const account = { email: 'jobs@example.com', password: 'S3cure!pass' };
+    expect(value('accountPassword', field('Password', { inputType: 'password' }), { account })?.text).toBe('S3cure!pass');
+    expect(value('accountPasswordConfirm', field('Verify New Password', { inputType: 'password' }), { account })?.text).toBe('S3cure!pass');
+    expect(value('accountPassword', field('Password', { inputType: 'password' }))).toBeNull();
+    expect(value('email', field('Email Address'), { account, accountPage: true })?.text).toBe('jobs@example.com');
+    expect(value('email', field('Email Address'), { account })?.text).toBe('avery@example.com');
   });
 });

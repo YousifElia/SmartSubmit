@@ -35,7 +35,31 @@
       <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_Phone">Phone <span>*</span></label><input type="tel" class="form-control" id="-1_Phone" /></div>
       <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_City">City</label><input type="text" class="form-control" id="-1_City" /></div>
       <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_Resume">Resume/CV <span>*</span></label><input type="file" id="-1_Resume" /></div>
+      <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_ResumeText">Or paste your resume here</label><textarea class="form-control" id="-1_ResumeText" rows="6"></textarea></div>
+      <section id="experience">
+        <h2>Work Experience</h2>
+        <div class="entry" data-n="0">
+          <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_Exp0_Title">Job Title</label><input type="text" class="form-control" id="-1_Exp0_Title" /></div>
+          <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_Exp0_Employer">Employer</label><input type="text" class="form-control" id="-1_Exp0_Employer" /></div>
+          <div class="iCIMS_TableRow"><label class="iCIMS_TableLabel" for="-1_Exp0_Desc">Responsibilities</label><textarea class="form-control" id="-1_Exp0_Desc"></textarea></div>
+        </div>
+        <button type="button" id="addExperience">+ Add Another</button>
+      </section>
       <button type="button" id="next">Next</button>
     </div>
+    <script>
+      // "Add Another" copies the last block with fresh ids, as iCIMS does.
+      document.getElementById('addExperience').addEventListener('click', () => {
+        const blocks = document.querySelectorAll('#experience .entry');
+        const last = blocks[blocks.length - 1];
+        const n = blocks.length;
+        const copy = last.cloneNode(true);
+        copy.dataset.n = String(n);
+        for (const el of copy.querySelectorAll('[id]')) el.id = el.id.replace(/Exp\d+/, 'Exp' + n);
+        for (const el of copy.querySelectorAll('[for]')) el.htmlFor = el.htmlFor.replace(/Exp\d+/, 'Exp' + n);
+        for (const el of copy.querySelectorAll('input, textarea')) el.value = '';
+        last.after(copy);
+      });
+    </script>
   </body>
 </html>

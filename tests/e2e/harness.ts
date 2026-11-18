@@ -119,6 +119,11 @@ export function sampleProfile(): Profile {
         description: 'Built internal tools.',
       },
     ],
+    skills: ['Python', 'TypeScript', 'React', 'PostgreSQL', 'Docker'],
+    languages: [
+      { id: 'l1', language: 'English', level: 'native' },
+      { id: 'l2', language: 'French', level: 'intermediate' },
+    ],
     workAuth: {
       CA: { authorized: 'yes', sponsorship: 'no', status: 'citizen', detail: '' },
       US: { authorized: 'no', sponsorship: 'yes', status: 'none', detail: '' },

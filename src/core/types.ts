@@ -64,6 +64,16 @@ export interface Experience {
   description: string;
 }
 
+/** How well someone speaks a language, from the top. */
+export type LanguageLevel = '' | 'native' | 'fluent' | 'advanced' | 'intermediate' | 'beginner';
+
+export interface SpokenLanguage {
+  id: string;
+  /** e.g. "English", "French". */
+  language: string;
+  level: LanguageLevel;
+}
+
 export type AuthStatus =
   | ''
   | 'citizen'
@@ -145,6 +155,10 @@ export interface Profile {
   };
   education: Education[];
   experience: Experience[];
+  /** Skills and tools, most important first. */
+  skills: string[];
+  /** Languages spoken, most fluent first. */
+  languages: SpokenLanguage[];
   /** Keyed by ISO country code. CA and US are always present. */
   workAuth: Record<string, CountryAuth>;
   preferences: {
@@ -369,6 +383,16 @@ export interface Settings {
     side: 'right' | 'left';
     /** Hosts where the user has hidden the panel. */
     hiddenHosts: string[];
+  };
+  /**
+   * The email and password for accounts on application systems (Workday,
+   * iCIMS make one per employer). Kept on this browser only: never synced,
+   * never in a backup, and only handed to those systems' own pages.
+   */
+  account: {
+    /** Empty to use the profile's email. */
+    email: string;
+    password: string;
   };
 }
 

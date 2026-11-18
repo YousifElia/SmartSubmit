@@ -46,6 +46,9 @@ export const SITE_NAMES: Record<SiteId, string> = {
   generic: 'This page',
 };
 
+/** Application systems that make you sign in to, or create, an account with each employer. */
+export const ACCOUNT_SITES: ReadonlySet<SiteId> = new Set<SiteId>(['workday', 'icims']);
+
 /** Identify the application system from a hostname. */
 export function siteFromHost(hostname: string): SiteId {
   const h = hostname.toLowerCase();

@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 import { makeAnswer, normalizeQuestion } from '@/core/autofill/answers';
 import type { Handlers, Snapshot } from '@/core/messages';
+import { ACCOUNT_SITES, siteFromHost } from '@/core/sites';
 import * as db from '@/core/storage/db';
 import type { SavedAnswer } from '@/core/types';
 import { newId } from '@/core/util/id';
@@ -56,6 +57,18 @@ export const dataHandlers = {
       if (answer) mutations.push({ op: 'put', collection: 'answers', id, data: { ...answer, uses: answer.uses + 1 } });
     }
     await db.mutate(mutations);
+  },
+  'account.credentials': async (_payload, sender) => {
+    // Only for the sign-in pages of the systems that have accounts, over HTTPS.
+    let url: URL;
+    try {
+      url = new URL(sender.url ?? '');
+    } catch {
+      return null;
+    }
+    if (url.protocol !== 'https:' || !ACCOUNT_SITES.has(siteFromHost(url.hostname))) return null;
+    const [settings, profile] = await Promise.all([db.getSettings(), db.getProfile()]);
+    return { email: settings.account.email.trim() || profile.email, password: settings.account.password };
   },
   'panel.hideHost': async ({ host }) => {
     const settings = await db.getSettings();

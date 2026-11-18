@@ -64,7 +64,7 @@ function mouse(el: Element, type: string): void {
 }
 
 /** The sequence a real click produces. Custom dropdowns listen to different parts of it. */
-function clickLikeAUser(el: HTMLElement): void {
+export function clickLikeAUser(el: HTMLElement): void {
   mouse(el, 'mouseover');
   mouse(el, 'mousemove');
   mouse(el, 'mousedown');
@@ -114,9 +114,15 @@ export function fillCheckbox(el: HTMLInputElement, checked: boolean): boolean {
 }
 
 /** Make a checkbox group match exactly the wanted set. */
-export function fillCheckboxes(options: HTMLInputElement[], wanted: number[]): boolean {
+export async function fillCheckboxes(options: HTMLInputElement[], wanted: number[]): Promise<boolean> {
   const want = new Set(wanted);
-  options.forEach((el, i) => fillCheckbox(el, want.has(i)));
+  for (const [i, el] of options.entries()) {
+    if (el.checked === want.has(i)) continue;
+    fillCheckbox(el, want.has(i));
+    // Let the page re-render between ticks: a list kept in a script's state
+    // can otherwise lose all but the last one.
+    await sleep(30);
+  }
   return options.every((el, i) => el.checked === want.has(i));
 }
 
