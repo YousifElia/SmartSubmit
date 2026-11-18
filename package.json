@@ -1,6 +1,6 @@
 {
   "name": "smartsubmit",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Autofill job applications, remember your answers, and tailor your resume with Claude or a local model.",
   "license": "MIT",
