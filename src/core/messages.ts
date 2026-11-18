@@ -90,6 +90,8 @@ export interface SyncStatus {
   error: string;
   /** This browser still holds the account's key, so a password reset here keeps the cloud copy. */
   holdsKey: boolean;
+  /** What the account held after the last sync, as the server counts it. */
+  remote: { items: number; files: number; at: number } | null;
 }
 
 export type AuthResult = { ok: true; needsConfirmation?: boolean } | { ok: false; error: string };

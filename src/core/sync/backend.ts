@@ -71,6 +71,8 @@ export interface SyncBackend {
   fetch(rids: string[]): Promise<RemoteRecord[]>;
   /** Delete every record (used when an account's key is replaced). */
   wipeRecords(): Promise<void>;
+  /** How many records the account holds (not counting deletion markers). */
+  countRecords(): Promise<number>;
 
   putFile(name: string, bytes: Uint8Array): Promise<void>;
   getFile(name: string): Promise<Uint8Array | null>;
@@ -247,6 +249,12 @@ export function supabaseBackend(url: string, key: string, secrets: SecretStore):
       const id = await userId();
       const { error } = await client.from('records').delete().eq('user_id', id);
       if (error) throw explain(error, 'Couldn’t clear the cloud copy.');
+    },
+    async countRecords() {
+      await userId();
+      const { count, error } = await client.from('records').select('rid', { count: 'exact', head: true }).eq('deleted', false);
+      if (error) throw explain(error, 'Couldn’t count what the account holds.');
+      return count ?? 0;
     },
 
     async putFile(name, bytes) {

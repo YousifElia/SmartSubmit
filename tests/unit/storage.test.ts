@@ -153,6 +153,36 @@ describe('record store', () => {
   });
 });
 
+describe('the job site account', () => {
+  beforeEach(() => fakeBrowser.reset());
+
+  it('syncs like everything else, but is never put in a backup file', async () => {
+    await db.put('credentials', 'jobsites', { email: 'jobs@example.com', password: 'S3cret-pass!' });
+    await db.put('answers', 'a1', answer('a1', 'Why us?'));
+    expect(Object.keys(await db.getDirty())).toEqual(expect.arrayContaining(['credentials/jobsites', 'answers/a1']));
+    const backup = await db.exportBackup();
+    expect(JSON.stringify(backup)).not.toContain('S3cret-pass!');
+    expect(backup.records.answers).toHaveLength(1);
+    // Nor taken from one, should a file carry it.
+    await fakeBrowser.storage.local.clear();
+    await db.importBackup({ ...backup, records: { ...backup.records, credentials: [{ id: 'jobsites', updatedAt: 9, data: { email: 'x', password: 'y' } }] } });
+    expect(await db.getJobSiteAccount()).toBeNull();
+  });
+
+  it('moves what 0.2.0 kept in settings into the synced record, once', async () => {
+    const settings = await db.getSettings();
+    await db.saveSettings({ ...settings, account: { email: 'jobs@example.com', password: 'Old-pass-1!' } });
+    await db.moveJobSiteAccount();
+    expect(await db.getJobSiteAccount()).toEqual({ email: 'jobs@example.com', password: 'Old-pass-1!' });
+    expect((await db.getSettings()).account).toEqual({ email: '', password: '' });
+    // A record already there wins over an older setting.
+    await db.put('credentials', 'jobsites', { email: 'new@example.com', password: 'New-pass-1!' });
+    await db.saveSettings({ ...(await db.getSettings()), account: { email: 'stale@example.com', password: 'stale' } });
+    await db.moveJobSiteAccount();
+    expect(await db.getJobSiteAccount()).toEqual({ email: 'new@example.com', password: 'New-pass-1!' });
+  });
+});
+
 describe('withDefaults', () => {
   it('adds fields missing from data written by an older version', () => {
     const stored = { firstName: 'Avery', address: { city: 'Windsor' } };

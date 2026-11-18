@@ -20,12 +20,15 @@ import { browser } from 'wxt/browser';
 import { defaultSettings, emptyProfile, withDefaults } from '../defaults';
 import {
   COLLECTIONS,
+  NOT_IN_BACKUPS,
   PROFILE_ID,
   type CollectionMap,
   type CollectionName,
   type Profile,
   type Rec,
   type Connections,
+  type JobSiteAccount,
+  JOB_SITE_ACCOUNT_ID,
   type Settings,
 } from '../types';
 
@@ -106,6 +109,25 @@ export async function getProfile(): Promise<Profile> {
 
 export async function getSettings(): Promise<Settings> {
   return withDefaults(defaultSettings(), await read<Settings>(SETTINGS_KEY));
+}
+
+/** The job site account (Workday, iCIMS), or null when none was saved. */
+export async function getJobSiteAccount(): Promise<JobSiteAccount | null> {
+  const stored = await get('credentials', JOB_SITE_ACCOUNT_ID);
+  return stored && (stored.email || stored.password) ? stored : null;
+}
+
+/**
+ * Versions before 0.2.1 kept the job site account in this browser's
+ * settings. Move it into the account record, which syncs, once.
+ */
+export async function moveJobSiteAccount(): Promise<void> {
+  const settings = await getSettings();
+  const old = settings.account;
+  if (!old.email && !old.password) return;
+  const mutations: Mutation[] = [{ op: 'settings', value: { ...settings, account: { email: '', password: '' } } }];
+  if (!(await getJobSiteAccount())) mutations.unshift({ op: 'put', collection: 'credentials', id: JOB_SITE_ACCOUNT_ID, data: { email: old.email, password: old.password } });
+  await mutate(mutations);
 }
 
 /** The imported LinkedIn connections, or null when none were imported. */
@@ -407,7 +429,7 @@ export interface Backup {
 /** Everything the user entered, as one portable object. Settings are left out. */
 export async function exportBackup(): Promise<Backup> {
   const records: Backup['records'] = {};
-  for (const c of COLLECTIONS) records[c] = await list(c);
+  for (const c of COLLECTIONS) if (!NOT_IN_BACKUPS.has(c)) records[c] = await list(c);
   const all = await browser.storage.local.get(null);
   const files: Record<string, string> = {};
   for (const [key, value] of Object.entries(all)) {
@@ -423,6 +445,7 @@ export async function importBackup(backup: Backup): Promise<{ records: number; f
   }
   const mutations: Mutation[] = [];
   for (const c of COLLECTIONS) {
+    if (NOT_IN_BACKUPS.has(c)) continue;
     for (const rec of backup.records[c] ?? []) {
       if (!rec || typeof rec.id !== 'string' || rec.deleted) continue;
       const existing = await getRec(c, rec.id);

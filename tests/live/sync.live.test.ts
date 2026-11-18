@@ -58,6 +58,8 @@ describe.skipIf(!URL || !KEY || !EMAIL || !PASSWORD)('sync against a real server
     expect(await account.signIn(EMAIL, PASSWORD)).toEqual({ ok: true });
     expect((await account.status()).state).toBe('ready');
     expect(await account.syncNow()).toMatchObject({ sent: 3, files: 1 });
+    // The server's own count of what the account holds, shown on the Sync page.
+    expect((await account.status()).remote).toMatchObject({ items: 3, files: 1 });
     expect(await db.getDirty()).toEqual({});
   });
 

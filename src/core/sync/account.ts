@@ -42,6 +42,16 @@ export interface AccountRecord {
   sync: SyncState;
   /** Why the last sync failed, or why sync stopped. */
   error: string;
+  /** What the account held after the last sync, as the server counts it: it can't read any of it. */
+  remote?: RemoteCounts | null;
+}
+
+export interface RemoteCounts {
+  /** Encrypted records: the profile, each resume, application, saved answer… */
+  items: number;
+  /** Encrypted files: uploaded resumes. */
+  files: number;
+  at: number;
 }
 
 /** A new account waiting for its email to be confirmed. */
@@ -62,6 +72,8 @@ export interface AccountStatus {
   error: string;
   /** This browser still holds the account's key, so a password reset here keeps the cloud copy. */
   holdsKey: boolean;
+  /** What the account held after the last sync. */
+  remote: RemoteCounts | null;
 }
 
 export interface AccountDeps {
@@ -223,7 +235,7 @@ export function createAccount(deps: AccountDeps) {
   return {
     async status(): Promise<AccountStatus> {
       const pending = await secrets.get<PendingSignUp>(PENDING);
-      if (pending && pending.server === server) return { state: 'confirming', email: pending.email, lastSyncAt: null, error: '', holdsKey: false };
+      if (pending && pending.server === server) return { state: 'confirming', email: pending.email, lastSyncAt: null, error: '', holdsKey: false, remote: null };
       const record = await mine();
       const held = await secrets.get<Uint8Array>(DATA_KEY);
       const holdsKey = !!record && !!held && (await keyIdOf(held)) === record.keyId;
@@ -233,6 +245,7 @@ export function createAccount(deps: AccountDeps) {
         lastSyncAt: record?.sync.lastSyncAt ?? null,
         error: record?.error ?? '',
         holdsKey,
+        remote: record?.signedIn ? (record.remote ?? null) : null,
       };
     },
 
@@ -426,7 +439,9 @@ export function createAccount(deps: AccountDeps) {
             return stop('The password was reset on another browser. Sign in with the new password to keep syncing.');
           }
           const { state, outcome } = await syncOnce({ backend, keys: await vaultKeys(dataKey), store }, record.sync, record.firstSync ?? 'normal');
-          await deps.save({ ...record, sync: state, firstSync: null, error: '' });
+          // What the account now holds, so the person can see it is all there.
+          const [items, files] = await Promise.all([backend.countRecords(), backend.listFiles()]);
+          await deps.save({ ...record, sync: state, firstSync: null, error: '', remote: { items, files: files.length, at: Date.now() } });
           return outcome;
         } catch (error) {
           if (error instanceof SyncError && error.kind === 'auth') return stop('You were signed out of sync. Sign in again to keep syncing.');

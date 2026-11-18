@@ -14,6 +14,7 @@ import { MIN_PASSWORD } from '@/core/sync/policy';
 import type { Settings } from '@/core/types';
 import { useLive, useSettings } from '../hooks';
 import { Badge, Button, Checkbox, cx, Modal, Notice, Spinner, TextField } from '../kit';
+import { AccountContents } from './AccountContents';
 
 const SELF_HOSTING = 'https://github.com/YousifElia/SmartSubmit#sync-server';
 
@@ -312,13 +313,15 @@ function SignedOut({
   settings,
   update,
   compact,
+  initialMode,
 }: {
   status: SyncStatus;
   settings: Settings;
   update: (fn: (s: Settings) => Settings) => Promise<void>;
   compact?: boolean;
+  initialMode?: 'signIn' | 'create';
 }) {
-  const [mode, setMode] = useState<'signIn' | 'create' | 'reset' | 'server'>(status.email ? 'signIn' : 'create');
+  const [mode, setMode] = useState<'signIn' | 'create' | 'reset' | 'server'>(initialMode ?? (status.email ? 'signIn' : 'create'));
   const [resetEmail, setResetEmail] = useState('');
 
   if (mode === 'server') return <ServerSetup settings={settings} update={update} onDone={() => setMode('signIn')} />;
@@ -339,7 +342,7 @@ function SignedOut({
           </li>
           <li className="flex gap-2.5">
             <Cloud size={16} className="mt-0.5 shrink-0 text-brand-600" />
-            Profile, resumes, saved answers, tailored resumes and tracked jobs. Settings stay on each browser.
+            Everything about you, your resumes, every application, saved answers and referrals: sign in on any browser and it all comes back.
           </li>
         </ul>
       )}
@@ -386,6 +389,11 @@ function SignedOut({
             Change
           </button>
         </p>
+      )}
+      {!compact && (
+        <div className="border-t border-slate-100 pt-5">
+          <AccountContents status={status} />
+        </div>
       )}
     </div>
   );
@@ -575,11 +583,12 @@ function SignedIn({ status, compact }: { status: SyncStatus; compact?: boolean }
         </Button>
       </div>
       {status.error && <Notice tone="amber">Last sync didn’t finish: {status.error}</Notice>}
+      <AccountContents status={status} />
       {!compact && (
         <p className="flex gap-2 text-[13px] leading-relaxed text-slate-500">
           <ShieldCheck size={16} className="mt-0.5 shrink-0 text-brand-600" />
-          Your profile, resumes, saved answers, tailored resumes and tracked jobs are encrypted on this browser before upload. SmartSubmit syncs
-          every 15 minutes and shortly after you change something.
+          All of it is encrypted on this browser before upload, so the server can count it but not read it. SmartSubmit syncs a few seconds after
+          you change something, every 15 minutes, and when the browser starts.
         </p>
       )}
       <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
@@ -603,7 +612,8 @@ function SignedIn({ status, compact }: { status: SyncStatus; compact?: boolean }
 
 // ───────────────────────────── Entry ─────────────────────────────
 
-export function SyncAccount({ compact }: { compact?: boolean }) {
+/** `initialMode`: open on signing in (someone bringing their data to a new browser) or on creating an account. */
+export function SyncAccount({ compact, initialMode }: { compact?: boolean; initialMode?: 'signIn' | 'create' }) {
   const status = useLive(
     () => send('sync.status'),
     (c) => c.kind === 'settings' || c.kind === 'meta',
@@ -619,5 +629,5 @@ export function SyncAccount({ compact }: { compact?: boolean }) {
   if (!status.configured) return <ServerSetup settings={settings} update={update} />;
   if (status.state === 'confirming') return <Confirming status={status} />;
   if (status.state === 'ready') return <SignedIn status={status} compact={compact} />;
-  return <SignedOut status={status} settings={settings} update={update} compact={compact} />;
+  return <SignedOut status={status} settings={settings} update={update} compact={compact} initialMode={initialMode} />;
 }

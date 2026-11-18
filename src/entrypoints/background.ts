@@ -8,6 +8,7 @@ import { jobHandlers } from '@/background/jobs';
 import { pageHandlers } from '@/background/page';
 import { startSyncSchedule, syncHandlers } from '@/background/sync';
 import { openDashboard } from '@/background/tabs';
+import * as db from '@/core/storage/db';
 
 export default defineBackground({
   type: 'module',
@@ -34,5 +35,7 @@ export default defineBackground({
     };
     serve(handlers);
     startSyncSchedule();
+    // Job site sign-in details saved by 0.2.0 move into the synced account record.
+    void db.moveJobSiteAccount().catch(() => undefined);
   },
 });

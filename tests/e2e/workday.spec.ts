@@ -132,7 +132,8 @@ test.describe('Workday', () => {
 
   test('creates the account with the saved email and password, leaving the consent box and the robot trap alone', async ({ app }) => {
     const password = 'Gr8-Applications!';
-    await app.seed({ settings: (s) => ({ ...s, account: { email: 'jobs.avery@example.com', password } }) });
+    await app.seed();
+    await app.request('db.mutate', { mutations: [{ op: 'put', collection: 'credentials', id: 'jobsites', data: { email: 'jobs.avery@example.com', password } }] });
     const page = await app.open(`${PAGES.workday}?account=create`);
     const report = await app.autofill(page);
     const state = await stateOf(page);

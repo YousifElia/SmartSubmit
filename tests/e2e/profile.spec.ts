@@ -124,11 +124,18 @@ test.describe('Profile', () => {
     await expect.poll(async () => (await stored(page)).languages.map((l) => [l.language, l.level])).toEqual([['Spanish', 'fluent']]);
   });
 
-  test('the job site account is saved on this browser only, with a generated password if wanted', async ({ app }) => {
+  test('the job site account is saved, synced with the rest, and never put in a backup file', async ({ app }) => {
     await app.seed();
     const page = app.dashboard;
     await openProfile(page);
-    const settings = () => page.evaluate(async () => ((await chrome.storage.local.get('s/settings'))['s/settings'] as Settings).account);
+    const settings = () =>
+      page.evaluate(
+        async () =>
+          ((await chrome.storage.local.get('r/credentials/jobsites'))['r/credentials/jobsites'] as { data: { email: string; password: string } } | undefined)?.data ?? {
+            email: '',
+            password: '',
+          },
+      );
 
     await page.getByLabel('Email for these accounts').fill('jobs.avery@example.com');
     await page.getByLabel('Password', { exact: true }).fill('short');
@@ -138,12 +145,20 @@ test.describe('Profile', () => {
     expect((await settings()).email).toBe('jobs.avery@example.com');
     await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('type', 'text');
 
-    // Never part of the profile, which syncs, nor of a backup.
-    expect(JSON.stringify(await stored(page))).not.toContain((await settings()).password);
-    const backup = await page.evaluate(async () => {
-      const all = await chrome.storage.local.get(null);
-      return Object.keys(all).filter((k) => k.startsWith('r/') && JSON.stringify(all[k]).includes('jobs.avery'));
-    });
-    expect(backup).toEqual([]);
+    // Waiting to sync like everything else.
+    const dirty = await page.evaluate(async () => (await chrome.storage.local.get('m/dirty'))['m/dirty'] as Record<string, number>);
+    expect(Object.keys(dirty)).toContain('credentials/jobsites');
+    // Not part of the profile, and never in a backup file, which is plain text.
+    const password = (await settings()).password;
+    expect(JSON.stringify(await stored(page))).not.toContain(password);
+    expect(JSON.stringify((await page.evaluate(async () => (await chrome.storage.local.get('s/settings'))['s/settings'] as Settings)).account)).not.toContain(password);
+    await page.evaluate(() => (window.location.hash = '#/settings'));
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export backup' }).click();
+    const file = await (await download).path();
+    const backup = (await import('node:fs')).readFileSync(file, 'utf8');
+    expect(backup).toContain('Testerson');
+    expect(backup).not.toContain(password);
+    expect(backup).not.toContain('jobs.avery');
   });
 });

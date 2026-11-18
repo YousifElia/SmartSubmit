@@ -169,6 +169,9 @@ export function fakeServer(options: { confirmEmail?: boolean } = {}) {
       async wipeRecords() {
         records.delete(need());
       },
+      async countRecords() {
+        return [...of(records, need()).values()].filter((r) => !r.deleted).length;
+      },
       async putFile(name, bytes) {
         of(files, need()).set(name, bytes);
       },

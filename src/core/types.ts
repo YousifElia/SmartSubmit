@@ -385,9 +385,8 @@ export interface Settings {
     hiddenHosts: string[];
   };
   /**
-   * The email and password for accounts on application systems (Workday,
-   * iCIMS make one per employer). Kept on this browser only: never synced,
-   * never in a backup, and only handed to those systems' own pages.
+   * Where versions before 0.2.1 kept the job site account; moved to the
+   * synced `credentials` collection when the background starts.
    */
   account: {
     /** Empty to use the profile's email. */
@@ -442,6 +441,20 @@ export interface Referral {
   createdAt: number;
 }
 
+/**
+ * The email and password for accounts on application systems (Workday and
+ * iCIMS make one per employer). Synced, encrypted, like everything else in
+ * the account; never put in a backup file, and only handed to those
+ * systems' own pages.
+ */
+export interface JobSiteAccount {
+  /** Empty to use the profile's email. */
+  email: string;
+  password: string;
+}
+
+export const JOB_SITE_ACCOUNT_ID = 'jobsites';
+
 // ─────────────────────────── Collections ───────────────────────────
 
 /**
@@ -455,11 +468,15 @@ export interface CollectionMap {
   answers: SavedAnswer;
   jobs: Job;
   referrals: Referral;
+  credentials: JobSiteAccount;
 }
 
 export type CollectionName = keyof CollectionMap;
 
-export const COLLECTIONS: CollectionName[] = ['profile', 'resumes', 'tailored', 'answers', 'jobs', 'referrals'];
+export const COLLECTIONS: CollectionName[] = ['profile', 'resumes', 'tailored', 'answers', 'jobs', 'referrals', 'credentials'];
+
+/** Never written to a backup file, which is plain text: the job site password. */
+export const NOT_IN_BACKUPS: ReadonlySet<CollectionName> = new Set<CollectionName>(['credentials']);
 
 export const PROFILE_ID = 'me';
 

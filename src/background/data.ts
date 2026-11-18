@@ -68,8 +68,8 @@ export const dataHandlers = {
       return null;
     }
     if (url.protocol !== 'https:' || !ACCOUNT_SITES.has(siteFromHost(url.hostname))) return null;
-    const [settings, profile] = await Promise.all([db.getSettings(), db.getProfile()]);
-    return { email: settings.account.email.trim() || profile.email, password: settings.account.password };
+    const [saved, profile] = await Promise.all([db.getJobSiteAccount(), db.getProfile()]);
+    return { email: saved?.email.trim() || profile.email, password: saved?.password ?? '' };
   },
   'referrals.summary': async ({ company }) => {
     const [connections, referrals] = await Promise.all([db.getConnections(), db.list('referrals')]);

@@ -26,7 +26,8 @@ interface Step {
   short: string;
   title: string;
   description: string;
-  render: (props: SectionProps) => ReactNode;
+  /** `signIn`: the person came to bring their data from another browser. */
+  render: (props: SectionProps & { signIn: boolean }) => ReactNode;
 }
 
 const STEPS: Step[] = [
@@ -120,8 +121,9 @@ const STEPS: Step[] = [
     id: 'sync',
     short: 'Sync',
     title: 'Sync across browsers',
-    description: 'Optional. Create an account to keep Chrome and Firefox in step. Everything is encrypted before it leaves this device.',
-    render: () => <SyncAccount compact />,
+    description:
+      'Optional. An account keeps everything: about you, your resumes, every application, saved answers and referrals. Sign in on any browser and it all comes back. It is encrypted before it leaves this device.',
+    render: (p) => <SyncAccount compact initialMode={p.signIn ? 'signIn' : undefined} />,
   },
 ];
 
@@ -211,6 +213,8 @@ export function Onboarding({ onDone }: { onDone: () => void | Promise<void> }) {
     setIndex(index + 1);
   };
   const { profile, setProfile, status } = useProfileEditor();
+  // Came from "Sign in to sync" on the welcome screen.
+  const [signIn, setSignIn] = useState(false);
 
   if (!profile) {
     return (
@@ -223,7 +227,13 @@ export function Onboarding({ onDone }: { onDone: () => void | Promise<void> }) {
   if (index < 0) {
     return (
       <div className="flex min-h-screen items-center px-6 py-12">
-        <Welcome onStart={() => setIndex(0)} onSignIn={() => setIndex(STEPS.findIndex((s) => s.id === 'sync'))} />
+        <Welcome
+          onStart={() => setIndex(0)}
+          onSignIn={() => {
+            setSignIn(true);
+            setIndex(STEPS.findIndex((s) => s.id === 'sync'));
+          }}
+        />
       </div>
     );
   }
@@ -284,7 +294,7 @@ export function Onboarding({ onDone }: { onDone: () => void | Promise<void> }) {
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{step.title}</h1>
           <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-500">{step.description}</p>
           <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70">
-            {step.render({ profile, onChange: setProfile })}
+            {step.render({ profile, onChange: setProfile, signIn })}
           </div>
         </div>
 

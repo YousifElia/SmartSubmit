@@ -5,13 +5,18 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Check, ClipboardCopy, Eye, EyeOff, KeyRound } from 'lucide-react';
+import * as db from '@/core/storage/db';
+import { JOB_SITE_ACCOUNT_ID, type JobSiteAccount } from '@/core/types';
 import { copyText } from '../clipboard';
 import { generatePassword, passwordProblems } from '@/core/util/password';
 import { Button, Field, TextField, cx } from '../kit';
-import { useSettings } from '../hooks';
+import { useLive } from '../hooks';
 
 export function AccountSection({ profileEmail }: { profileEmail: string }) {
-  const [settings, update] = useSettings();
+  const saved = useLive(
+    () => db.getJobSiteAccount(),
+    (c) => c.kind === 'record' && c.collection === 'credentials',
+  );
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
@@ -22,15 +27,20 @@ export function AccountSection({ profileEmail }: { profileEmail: string }) {
 
   // Start from what is saved, once it has loaded.
   useEffect(() => {
-    if (settings && email === null) setEmail(settings.account.email);
-    if (settings && password === null) setPassword(settings.account.password);
-  }, [settings, email, password]);
+    if (saved === undefined) return;
+    if (email === null) setEmail(saved?.email ?? '');
+    if (password === null) setPassword(saved?.password ?? '');
+  }, [saved, email, password]);
 
   const flush = () => {
     clearTimeout(timer.current);
     const next = pending.current;
     pending.current = {};
-    if (Object.keys(next).length > 0) void update((current) => ({ ...current, account: { ...current.account, ...next } }));
+    if (Object.keys(next).length === 0) return;
+    void db.getJobSiteAccount().then((current) => {
+      const merged: JobSiteAccount = { email: current?.email ?? '', password: current?.password ?? '', ...next };
+      return db.put('credentials', JOB_SITE_ACCOUNT_ID, merged);
+    });
   };
   const save = (next: { email?: string; password?: string }) => {
     pending.current = { ...pending.current, ...next };
@@ -67,7 +77,7 @@ export function AccountSection({ profileEmail }: { profileEmail: string }) {
         hint={
           problems.length > 0
             ? `Most of these systems also want ${problems.join(', ')}.`
-            : 'Kept on this browser only: never synced, never in a backup, and only given to Workday and iCIMS pages.'
+            : 'Saved to your sync account too, encrypted, when sync is on. Never put in a backup file, and only given to Workday and iCIMS pages.'
         }
       >
         <div className="flex flex-wrap gap-2">

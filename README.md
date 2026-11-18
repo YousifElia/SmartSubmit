@@ -18,7 +18,7 @@ Your data stays in your browser. Sync between browsers is optional and end-to-en
   Tailoring works from the posting's keywords, which you see before it runs: what your resume shows of them comes first, in the posting's words (a resume that says "Postgres" says "PostgreSQL" for a posting that does). Either way you review every change, and which keywords it gained or lost, before a PDF is built. Tailoring may reorder, rephrase and trim what is in your resume. Anything the job asks for that your resume doesn't show is listed as a gap, never written in; a check removes invented employers, titles, skills and numbers.
 - **Job tools.** A keyword match score for each job, a PDF copy of the posting, and an application tracker (saved, started, applied, interviewing, offer, rejected, withdrawn) with CSV export.
 - **Referrals.** Import the copy of your LinkedIn connections that LinkedIn gives you, and for each job SmartSubmit lists the people you know at that company, the best placed to refer you first. A model on your computer can weigh their job titles against the posting and write the request (it sees job titles, never names); a plain template works without one. When you know nobody there, it offers LinkedIn searches to open yourself. Everyone you ask, at every company, is kept on a list with where it stands.
-- **Sync.** Optional. Keep Chrome and Firefox in step with an account on your own [Supabase](https://supabase.com) project. Everything is encrypted in the browser first.
+- **Sync.** Optional. An account on your own [Supabase](https://supabase.com) project keeps everything: about you, links, education, experience, skills and languages, your resumes and their files, every application, saved answers, tailored resumes, referrals and your job site sign-in. Sign in on any browser and it all comes back; the Sync page lists what the account holds. Everything is encrypted in the browser first.
 
 ## Supported application systems
 
@@ -55,6 +55,8 @@ Pre-built extensions are attached to each [release](https://github.com/YousifEli
 1. Unzip `smartsubmit-<version>-chrome.zip`.
 2. Open `chrome://extensions`, turn on **Developer mode**, and choose **Load unpacked**.
 3. Select the unzipped folder. The setup opens in a new tab.
+
+To update, unzip the new version anywhere (over the old folder is simplest) and load it, or press the reload button if it went over the old folder. From 0.2.1 on, SmartSubmit keeps the same extension ID (`henggcjkamgnddjcjhfnfbgfecmankpd`) whichever folder it is loaded from, so its data stays. Earlier versions took their ID from the folder: loading one from a new folder started empty. If that happened to you, sign in to sync on the copy that has your data first, then on the new one.
 
 **Firefox 140 or later**
 
@@ -96,7 +98,7 @@ Supabase's security advisor flags `public.delete_account()` because it runs with
 ### How sync protects your data
 
 - Your password never leaves the browser. It is stretched with PBKDF2-SHA-256 (600,000 rounds) into two keys. One is what the server sees as your password. The other encrypts ("wraps") a random 256-bit data key, which is stored on the server only in wrapped form.
-- Each record (profile, resume, saved answer, tailored resume, tracked job) and each uploaded file is encrypted with AES-GCM under keys derived from that data key. Records are stored under an opaque address (an HMAC of their name), so the server can't tell what kind of thing each one is.
+- Each record (profile, resume, application, saved answer, tailored resume, referral, job site sign-in) and each uploaded file is encrypted with AES-GCM under keys derived from that data key. Kept off the server: your LinkedIn connections (other people's details) and each browser's settings. Records are stored under an opaque address (an HMAC of their name), so the server can't tell what kind of thing each one is.
 - The newest change to a record wins, decided in the database so that an older copy can never overwrite a newer one.
 - **If you forget your password,** your synced data can be recovered only from a browser that is still signed in: reset the password there and the data is kept. Resetting from anywhere else starts the cloud copy again from that browser.
 - The server can see how many records you have, their sizes, when they changed, and your email address. It can't read any of their content.

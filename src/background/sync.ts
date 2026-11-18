@@ -88,7 +88,7 @@ function syncSoon(delay = AFTER_CHANGE_MS): void {
 
 async function status(): Promise<SyncStatus> {
   const found = await account().catch(() => null);
-  const empty: SyncStatus = { configured: false, state: 'signedOut', email: '', lastSyncAt: null, syncing: false, pending: 0, error: '', holdsKey: false };
+  const empty: SyncStatus = { configured: false, state: 'signedOut', email: '', lastSyncAt: null, syncing: false, pending: 0, error: '', holdsKey: false, remote: null };
   if (!found) return empty;
   const [state, dirty, dirtyFiles] = await Promise.all([found.status(), db.getDirty(), db.getDirtyFiles()]);
   const paused = state.state === 'ready' && !(await maySend());

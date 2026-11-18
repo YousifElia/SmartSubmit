@@ -131,9 +131,13 @@ describe('sync account', () => {
     await db.put('answers', 'b1', answer('b1', 'Hybrid'));
     expect(await b.signIn(EMAIL, 'wrong password!!')).toMatchObject({ ok: false, error: expect.stringMatching(/don’t match/) });
     expect(await b.signIn(EMAIL, PASSWORD)).toEqual(ok);
+    // Before the first sync, nothing is known of what the account holds.
+    expect((await b.status()).remote).toBeNull();
     await b.syncNow();
     expect((await db.getProfile()).firstName).toBe('Avery');
     expect((await db.list('answers')).map((r) => r.id).sort()).toEqual(['a1', 'b1']);
+    // After it, the server's own count: the profile and both answers.
+    expect((await b.status()).remote).toMatchObject({ items: 3, files: 0 });
 
     await (await browsers.on('A')).syncNow();
     expect((await db.list('answers')).map((r) => r.id).sort()).toEqual(['a1', 'b1']);
