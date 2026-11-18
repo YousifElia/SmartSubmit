@@ -364,6 +364,9 @@ button.item:hover { background: #f8fafc; }
 .job-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; }
 .job-actions .secondary { display: inline-flex; align-items: center; gap: 5px; }
 .job-actions .secondary:disabled { opacity: 0.55; cursor: default; }
+.referrals { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line, #e2e8f0); }
+.referral-note { margin: 0; flex: 1 1 160px; font-size: 12px; color: var(--muted, #64748b); }
+.referrals .secondary { display: inline-flex; align-items: center; gap: 5px; }
 .tracked { display: inline-flex; align-items: center; gap: 4px; color: var(--green); font-size: 12px; font-weight: 600; }
 .match { margin-top: 8px; }
 .match > summary {

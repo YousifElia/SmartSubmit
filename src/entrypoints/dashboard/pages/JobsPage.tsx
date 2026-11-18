@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BriefcaseBusiness, Download, ExternalLink, FileDown, Search, Sparkles, Trash2 } from 'lucide-react';
+import { BriefcaseBusiness, Download, ExternalLink, FileDown, Search, Sparkles, Trash2, UsersRound } from 'lucide-react';
 import { jobsToCsv } from '@/core/jobs/csv';
 import type { MatchReport } from '@/core/jobs/keywords';
 import { send } from '@/core/messages';
@@ -197,6 +197,15 @@ function JobDetails({ job, resumes, tailored, onClose, navigate }: { job: Job; r
           </Button>
           <Button icon={<ExternalLink size={15} />} onClick={() => void send('tab.open', { url: job.url })}>
             Open posting
+          </Button>
+          <Button
+            icon={<UsersRound size={15} />}
+            onClick={() => {
+              void save();
+              navigate(`/referrals/${job.id}`);
+            }}
+          >
+            Find a referral
           </Button>
           <Button
             variant="primary"

@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 import { makeAnswer, normalizeQuestion } from '@/core/autofill/answers';
 import type { Handlers, Snapshot } from '@/core/messages';
+import { connectionsAt, referralsAt } from '@/core/referrals/match';
 import { ACCOUNT_SITES, siteFromHost } from '@/core/sites';
 import * as db from '@/core/storage/db';
 import type { SavedAnswer } from '@/core/types';
@@ -69,6 +70,13 @@ export const dataHandlers = {
     if (url.protocol !== 'https:' || !ACCOUNT_SITES.has(siteFromHost(url.hostname))) return null;
     const [settings, profile] = await Promise.all([db.getSettings(), db.getProfile()]);
     return { email: settings.account.email.trim() || profile.email, password: settings.account.password };
+  },
+  'referrals.summary': async ({ company }) => {
+    const [connections, referrals] = await Promise.all([db.getConnections(), db.list('referrals')]);
+    const saved = referralsAt(company, referrals.map((r) => r.data));
+    const order = ['referred', 'agreed', 'asked', 'to-ask', 'declined'] as const;
+    const best = order.find((status) => saved.some((r) => r.status === status)) ?? null;
+    return { people: connections ? connectionsAt(company, connections.items).length : 0, saved: saved.length, best };
   },
   'panel.hideHost': async ({ host }) => {
     const settings = await db.getSettings();

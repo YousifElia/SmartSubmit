@@ -15,7 +15,7 @@ import { addEntries, countEntries, findAddButtons, type EntryNeed } from '@/core
 import { discoverFields, type FormField } from '@/core/autofill/fields';
 import { captureJob as captureFromPage, jobCountry, postingKey, type JobCapture } from '@/core/jobs/extract';
 import type { MatchReport } from '@/core/jobs/keywords';
-import { send, type ResumeRef, type Snapshot } from '@/core/messages';
+import { send, type ReferralSummary, type ResumeRef, type Snapshot } from '@/core/messages';
 import type { SiteId } from '@/core/sites';
 import type { Job, JobStatus, Profile, TailoredResume } from '@/core/types';
 import { fillText } from '@/core/autofill/fill';
@@ -49,6 +49,8 @@ export interface PanelState {
   notice: string;
   /** The posting this application is for, once read from the page. */
   capture: JobCapture | null;
+  /** People the user knows at this job's company, and saved referrals there. */
+  referrals: ReferralSummary | null;
   /** Its record in the tracker, once tracked. */
   job: Job | null;
   match: MatchReport | null;
@@ -94,6 +96,7 @@ export class Controller {
       error: '',
       notice: '',
       capture: null,
+      referrals: null,
       job: null,
       match: null,
       jobBusy: '',
@@ -176,6 +179,17 @@ export class Controller {
   }
 
   /** Open the tailoring page for this job, adding it to the tracker if needed. */
+  /** Open the Referrals page on this job, adding it to the tracker first. */
+  async openReferrals(): Promise<void> {
+    try {
+      const job = this.state.job ?? (await this.track());
+      if (!job) throw new Error('No job posting was found on this page.');
+      this.openDashboard(`/referrals/${job.id}`);
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+
   async openTailor(): Promise<void> {
     try {
       const job = this.state.job ?? (await this.track());
@@ -267,10 +281,17 @@ export class Controller {
     if (this.captured?.key !== key) {
       const promise = captureFromPage(this.doc, this.state.site, href, (url) => fetch(url, { credentials: 'omit' })).catch(() => null);
       this.captured = { key, promise };
-      this.set({ capture: null, job: null, match: null });
+      this.set({ capture: null, job: null, match: null, referrals: null });
       void promise.then(async (capture) => {
         if (this.captured?.key !== key || !capture) return;
         this.set({ capture });
+        if (capture.company) {
+          void send('referrals.summary', { company: capture.company })
+            .then((referrals) => {
+              if (this.captured?.key === key) this.set({ referrals });
+            })
+            .catch(() => undefined);
+        }
         // Already tracked from an earlier visit? Show its record. Looking at a
         // job never adds it to the tracker.
         const job = await send('job.find', { key: capture.key }).catch(() => null);

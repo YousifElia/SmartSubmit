@@ -25,6 +25,7 @@ import {
   type CollectionName,
   type Profile,
   type Rec,
+  type Connections,
   type Settings,
 } from '../types';
 
@@ -32,6 +33,8 @@ const recKey = (c: CollectionName, id: string) => `r/${c}/${id}`;
 const idxKey = (c: CollectionName) => `i/${c}`;
 const fileKey = (id: string) => `f/${id}`;
 const SETTINGS_KEY = 's/settings';
+/** LinkedIn connections: on this device only (see `Connections`). */
+const CONNECTIONS_KEY = 'l/connections';
 export const DIRTY_KEY = 'm/dirty';
 export const DIRTY_FILES_KEY = 'm/dirtyFiles';
 
@@ -43,7 +46,8 @@ export type Mutation =
   | { op: 'remove'; collection: CollectionName; id: string; updatedAt?: number; expect?: number | null }
   | { op: 'putFile'; id: string; base64: string }
   | { op: 'removeFile'; id: string }
-  | { op: 'settings'; value: Settings };
+  | { op: 'settings'; value: Settings }
+  | { op: 'connections'; value: Connections | null };
 
 export interface MutateOptions {
   /**
@@ -102,6 +106,12 @@ export async function getProfile(): Promise<Profile> {
 
 export async function getSettings(): Promise<Settings> {
   return withDefaults(defaultSettings(), await read<Settings>(SETTINGS_KEY));
+}
+
+/** The imported LinkedIn connections, or null when none were imported. */
+export async function getConnections(): Promise<Connections | null> {
+  const stored = await read<Connections>(CONNECTIONS_KEY);
+  return stored && Array.isArray(stored.items) ? stored : null;
 }
 
 export async function getFile(id: string): Promise<string | null> {
@@ -228,6 +238,15 @@ async function applyNow(mutations: Mutation[], options: MutateOptions): Promise<
       case 'settings':
         set[SETTINGS_KEY] = m.value;
         break;
+      case 'connections':
+        if (m.value) {
+          set[CONNECTIONS_KEY] = m.value;
+          del.delete(CONNECTIONS_KEY);
+        } else {
+          delete set[CONNECTIONS_KEY];
+          del.add(CONNECTIONS_KEY);
+        }
+        break;
     }
   }
 
@@ -341,6 +360,7 @@ export function removeFile(id: string): Promise<void> {
 export type StoreChange =
   | { kind: 'record'; collection: CollectionName; id: string }
   | { kind: 'settings' }
+  | { kind: 'connections' }
   | { kind: 'meta'; key: string };
 
 /**
@@ -362,6 +382,8 @@ export function onStoreChange(listener: (changes: StoreChange[]) => void): () =>
         });
       } else if (key === SETTINGS_KEY) {
         changes.push({ kind: 'settings' });
+      } else if (key === CONNECTIONS_KEY) {
+        changes.push({ kind: 'connections' });
       } else if (key.startsWith('m/') || key.startsWith('a/')) {
         changes.push({ kind: 'meta', key });
       }
@@ -433,6 +455,8 @@ export async function wipeLocalData(): Promise<void> {
       });
     } else if (key.startsWith('f/')) {
       mutations.push({ op: 'removeFile', id: key.slice(2) });
+    } else if (key === CONNECTIONS_KEY) {
+      mutations.push({ op: 'connections', value: null });
     }
   }
   await mutate(mutations);

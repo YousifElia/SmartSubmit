@@ -396,6 +396,52 @@ export interface Settings {
   };
 }
 
+// ───────────────────────────── Referrals ─────────────────────────────
+
+/** One of the user's LinkedIn connections, from LinkedIn's own data export. */
+export interface Connection {
+  firstName: string;
+  lastName: string;
+  /** Their LinkedIn profile address. */
+  url: string;
+  /** Only when they let connections see it. */
+  email: string;
+  company: string;
+  position: string;
+  /** As LinkedIn writes it, e.g. "12 Nov 2024". */
+  connectedOn: string;
+}
+
+/**
+ * The imported connections. Kept on this browser only: they are other
+ * people's details, so they are never synced or put in a backup.
+ */
+export interface Connections {
+  importedAt: number;
+  items: Connection[];
+}
+
+export type ReferralStatus = 'to-ask' | 'asked' | 'agreed' | 'referred' | 'declined';
+
+/** Someone at a company who could refer the user, and where asking them stands. */
+export interface Referral {
+  id: string;
+  name: string;
+  company: string;
+  /** Their job title. */
+  title: string;
+  linkedin: string;
+  email: string;
+  /** How they know each other: "Former coworker", "Classmate". */
+  relationship: string;
+  status: ReferralStatus;
+  /** The tracked jobs at that company this referral is for. */
+  jobIds: string[];
+  notes: string;
+  askedAt: number | null;
+  createdAt: number;
+}
+
 // ─────────────────────────── Collections ───────────────────────────
 
 /**
@@ -408,11 +454,12 @@ export interface CollectionMap {
   tailored: TailoredResume;
   answers: SavedAnswer;
   jobs: Job;
+  referrals: Referral;
 }
 
 export type CollectionName = keyof CollectionMap;
 
-export const COLLECTIONS: CollectionName[] = ['profile', 'resumes', 'tailored', 'answers', 'jobs'];
+export const COLLECTIONS: CollectionName[] = ['profile', 'resumes', 'tailored', 'answers', 'jobs', 'referrals'];
 
 export const PROFILE_ID = 'me';
 

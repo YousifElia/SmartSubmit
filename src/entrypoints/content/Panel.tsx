@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { Check, FileDown, LoaderCircle, Minus, Send, Sparkles, Wand2, X } from 'lucide-react';
+import { Check, FileDown, LoaderCircle, Minus, Send, Sparkles, UsersRound, Wand2, X } from 'lucide-react';
+import type { ReferralStatus } from '@/core/types';
 import type { Candidate, FieldResult } from '@/core/autofill/engine';
 import { SITE_NAMES } from '@/core/sites';
 import type { Controller, Draft, PanelState } from './controller';
@@ -95,6 +96,31 @@ const STATUS_LABELS: Record<string, string> = {
   withdrawn: 'Withdrawn',
 };
 
+const REFERRAL_WORDS: Record<ReferralStatus, string> = {
+  referred: 'someone referred you',
+  agreed: 'someone agreed to refer you',
+  asked: 'waiting to hear back',
+  'to-ask': 'not asked yet',
+  declined: 'declined so far',
+};
+
+/** Who the user knows there, as counts: names stay in the dashboard, out of the employer's page. */
+function Referrals({ state, controller }: { state: PanelState; controller: Controller }) {
+  const summary = state.referrals;
+  const company = state.capture?.company;
+  if (!summary || !company) return null;
+  const people = summary.people === 0 ? '' : summary.people === 1 ? `You know 1 person at ${company}.` : `You know ${summary.people} people at ${company}.`;
+  const saved = summary.saved === 0 || !summary.best ? '' : `Referral: ${REFERRAL_WORDS[summary.best]}.`;
+  return (
+    <div className="referrals" data-testid="panel-referrals">
+      <p className="referral-note">{[saved, people].filter(Boolean).join(' ') || `Find someone at ${company} to refer you.`}</p>
+      <button type="button" className="secondary" onClick={() => void controller.openReferrals()}>
+        <UsersRound size={13} /> {summary.people > 0 && summary.saved === 0 ? 'Ask for a referral' : 'Referrals'}
+      </button>
+    </div>
+  );
+}
+
 function JobCard({ state, controller }: { state: PanelState; controller: Controller }) {
   const capture = state.capture;
   if (!capture) return null;
@@ -149,6 +175,7 @@ function JobCard({ state, controller }: { state: PanelState; controller: Control
         )}
       </div>
       {job && !applied ? <p className="job-meta">In your tracker as “{STATUS_LABELS[job.status]}”.</p> : null}
+      <Referrals state={state} controller={controller} />
     </section>
   );
 }

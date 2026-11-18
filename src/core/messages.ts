@@ -16,6 +16,7 @@ import type {
   Job,
   JobStatus,
   Profile,
+  ReferralStatus,
   ResumeDoc,
   RichBlock,
   SavedAnswer,
@@ -136,6 +137,12 @@ export interface Protocol {
    */
   'job.match': [{ jobId?: string; blocks?: RichBlock[]; resume: ResumeRef }, MatchReport];
   'tailored.forJob': [{ jobId: string }, TailoredResume[]];
+  /**
+   * How many people the user knows at a company, and where their saved
+   * referrals there stand. Counts only: the panel sits inside the
+   * employer's page, so names stay in the dashboard.
+   */
+  'referrals.summary': [{ company: string }, ReferralSummary];
 
   /**
    * Draft an answer to an application question with the local model. Tailoring
@@ -162,6 +169,15 @@ export interface Protocol {
   'auth.requestReset': [{ email: string }, AuthResult];
   'auth.completeReset': [{ email: string; proof: string; password: string }, AuthResult];
   'auth.deleteAccount': [{ password: string }, AuthResult];
+}
+
+export interface ReferralSummary {
+  /** Connections who work at the company. */
+  people: number;
+  /** Saved referrals at the company. */
+  saved: number;
+  /** The furthest along of those: someone who referred you beats someone asked. */
+  best: ReferralStatus | null;
 }
 
 export type TailorStrength = 'light' | 'balanced' | 'strong';

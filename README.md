@@ -6,9 +6,10 @@ Your data stays in your browser. Sync between browsers is optional and end-to-en
 
 ## What it does
 
-- **Set up once.** On install, a guided setup collects the details applications ask for: name, contact, location, links, education, experience, Canadian and U.S. work authorization, common answers (salary, start date, notice period) and, if you choose, voluntary demographic answers. Every step can be skipped and edited later.
+- **Set up once.** On install, a guided setup starts from your resume and fills in what it can: contact details, every job and school, skills and the languages you speak. You check them, then add Canadian and U.S. work authorization, common answers (salary, start date, notice period) and, if you choose, voluntary demographic answers. Every step can be skipped and edited later, and **Fill from resume** on the Profile page reads a resume into it again at any time, adding what's missing or replacing.
+- **Job site accounts.** Workday and iCIMS make you open an account with each employer. Save the email and password you use for them (there's a generator) and SmartSubmit fills their sign-in and create-account pages.
 - **Resumes.** Paste text or upload PDF, Word or LaTeX (`.tex`) files, as many as you like, with one marked as the default. Each is split into editable sections, so everything works without any AI. A LaTeX resume is read for the text it prints, including the commands it defines for itself and the moderncv and awesome-cv classes; applications then get a PDF built from its sections.
-- **Autofill.** On a supported application a small panel appears at the edge of the page. Press **Autofill** and it fills what it knows, attaches your resume, and colour-codes every field: filled, worth checking, or needs your answer. On any other site, click the toolbar button to run it on the current page.
+- **Autofill.** On a supported application a small panel appears at the edge of the page. Press **Autofill** and it fills what it knows, attaches your resume, and colour-codes every field: filled, worth checking, or needs your answer. Sections that list jobs, schools or languages one block at a time get a block for each of yours, each filled in; skills and "which languages do you speak?" questions are answered too, and a box for pasting your resume gets its text. On any other site, click the toolbar button to run it on the current page.
 - **Learning.** When you answer a question SmartSubmit didn't know, the panel offers to remember it. Next time the same question is filled for you; a similar one is filled and flagged for you to check. On forms that run over several steps, answers from earlier steps stay on offer.
 - **Tailoring.** Rewrite a resume for a specific job, with:
   - **Claude**, by copy and paste: SmartSubmit prepares the prompt and opens claude.ai (or paste it into Claude in Chrome's side panel); you paste the reply back. No API key, no sign-in.
@@ -16,6 +17,7 @@ Your data stays in your browser. Sync between browsers is optional and end-to-en
 
   Tailoring works from the posting's keywords, which you see before it runs: what your resume shows of them comes first, in the posting's words (a resume that says "Postgres" says "PostgreSQL" for a posting that does). Either way you review every change, and which keywords it gained or lost, before a PDF is built. Tailoring may reorder, rephrase and trim what is in your resume. Anything the job asks for that your resume doesn't show is listed as a gap, never written in; a check removes invented employers, titles, skills and numbers.
 - **Job tools.** A keyword match score for each job, a PDF copy of the posting, and an application tracker (saved, started, applied, interviewing, offer, rejected, withdrawn) with CSV export.
+- **Referrals.** Import the copy of your LinkedIn connections that LinkedIn gives you, and for each job SmartSubmit lists the people you know at that company, the best placed to refer you first. A model on your computer can weigh their job titles against the posting and write the request (it sees job titles, never names); a plain template works without one. When you know nobody there, it offers LinkedIn searches to open yourself. Everyone you ask, at every company, is kept on a list with where it stands.
 - **Sync.** Optional. Keep Chrome and Firefox in step with an account on your own [Supabase](https://supabase.com) project. Everything is encrypted in the browser first.
 
 ## Supported application systems
@@ -37,7 +39,9 @@ The four systems in the lower rows are the least proven. If something is missed 
 ## What it will never do
 
 - Submit an application, or press a submit button.
-- Fill a password, a CAPTCHA, or a field hidden from people (a spam trap).
+- Fill a CAPTCHA, or a field hidden from people (a spam trap).
+- Fill a password anywhere but a password box on the sign-in and create-account pages of Workday and iCIMS, and there only with the job site password you saved, only when you press Autofill.
+- Visit or read LinkedIn for you, or send a message. Referral requests are yours to copy and send.
 - Tick an agreement, consent or certification box, or sign anything, even from an answer you saved before.
 - Drive claude.ai in any way. The Claude handoff is you pasting and copying.
 - Invent experience when tailoring.
@@ -140,7 +144,8 @@ src/
   core/
     autofill/    field discovery, classification, answers, filling, site adapters
     jobs/        posting capture, keyword matching, CSV
-    resume/      PDF, Word and LaTeX reading, section detection
+    resume/      PDF, Word and LaTeX reading, section detection, resume to profile
+    referrals/   LinkedIn's connections export, matching companies, asking for a referral
     pdf/         resume and posting PDFs
     ai/          prompts, schemas, providers, the truthfulness check
     sync/        encryption, accounts, the sync engine, the Supabase backend

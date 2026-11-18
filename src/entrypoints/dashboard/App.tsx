@@ -8,6 +8,7 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   UserRound,
+  UsersRound,
 } from 'lucide-react';
 import { Logo } from '@/ui/Logo';
 import { cx, Spinner } from '@/ui/kit';
@@ -19,6 +20,7 @@ import { ResumesPage } from './pages/ResumesPage';
 import { AnswersPage } from './pages/AnswersPage';
 import { JobsPage } from './pages/JobsPage';
 import { TailorPage } from './pages/TailorPage';
+import { ReferralsPage } from './pages/ReferralsPage';
 import { AiPage } from './pages/AiPage';
 import { SyncPage } from './pages/SyncPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -35,6 +37,7 @@ const NAV: NavItem[] = [
   { route: '/resumes', label: 'Resumes', icon: <FileText size={17} /> },
   { route: '/answers', label: 'Saved answers', icon: <MessageSquareText size={17} /> },
   { route: '/jobs', label: 'Applications', icon: <BriefcaseBusiness size={17} /> },
+  { route: '/referrals', label: 'Referrals', icon: <UsersRound size={17} /> },
   { route: '/ai', label: 'AI', icon: <Sparkles size={17} /> },
   { route: '/sync', label: 'Sync', icon: <RefreshCw size={17} /> },
   { route: '/settings', label: 'Settings', icon: <SettingsIcon size={17} /> },
@@ -55,6 +58,8 @@ function Page({ route, navigate }: { route: string; navigate: (r: string) => voi
       return <JobsPage navigate={navigate} />;
     case 'tailor':
       return <TailorPage jobId={arg} navigate={navigate} />;
+    case 'referrals':
+      return <ReferralsPage jobId={arg} navigate={navigate} />;
     case 'ai':
       return <AiPage />;
     case 'sync':
